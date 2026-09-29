@@ -16,6 +16,7 @@ let modal = null;
 let currentSelection = '';
 let currentMode = 'enhance'; // 'enhance' or 'response'
 let originalFocusElement = null; // Store the element that had focus before modal opened
+let generationPort = null; // Open streaming connection to the background worker, if any
 
 // SVG Icons
 const ENHANCE_ICON_SVG = `
@@ -315,9 +316,9 @@ function openModal(mode = 'enhance') {
   // Store the currently focused element
   originalFocusElement = document.activeElement;
 
-  // Check if API key is configured
-  chrome.storage.local.get(['openai_api_key'], (result) => {
-    if (!result.openai_api_key) {
+  // Check if API key is configured (the key itself stays in the background worker)
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (status) => {
+    if (chrome.runtime.lastError || !status?.hasApiKey) {
       showSetupPrompt();
       return;
     }
@@ -338,7 +339,7 @@ function showSetupPrompt() {
         <button class="aai-crm-close-btn" aria-label="Close">&times;</button>
       </div>
       <div class="aai-crm-modal-body">
-        <p>Please configure your OpenAI API key in the extension settings to use text enhancement.</p>
+        <p>Please configure your OpenAI API key in the extension settings to use text enhancement. If you chose not to remember the key, it needs to be re-entered after restarting the browser.</p>
         <button class="aai-crm-primary-btn" id="aai-crm-open-settings">Open Settings</button>
       </div>
     </div>
@@ -442,9 +443,10 @@ function createModal(mode = 'enhance') {
 }
 
 /**
- * Generate enhanced text or suggested response using OpenAI API
+ * Generate enhanced text or suggested response using OpenAI API.
+ * Text is streamed into the textarea as it arrives.
  */
-async function generateEnhancedText(additionalContext = '') {
+function generateEnhancedText(additionalContext = '') {
   const loadingEl = modal.querySelector('.aai-crm-loading');
   const textareaEl = modal.querySelector('.aai-crm-enhanced-text');
   const errorEl = modal.querySelector('.aai-crm-error');
@@ -454,57 +456,35 @@ async function generateEnhancedText(additionalContext = '') {
     modal.querySelector('#aai-crm-add-flair')
   ];
 
+  // Cancel any generation still in progress
+  cancelGeneration();
+
   // Show loading state
   loadingEl.style.display = 'flex';
   textareaEl.style.display = 'none';
+  textareaEl.value = '';
+  textareaEl.readOnly = true;
   errorEl.style.display = 'none';
   buttons.forEach(btn => btn.style.display = 'none');
 
-  try {
-    // Detect and redact PII before sending to OpenAI
-    const { redactedText, hasPII, piiTypes } = detectAndRedactPII(currentSelection);
+  // Detect and redact PII before sending to OpenAI
+  const { redactedText, hasPII, piiTypes } = detectAndRedactPII(currentSelection);
 
-    // Show PII warning if detected
-    if (hasPII) {
-      const originalLabel = modal.querySelector('.aai-crm-section label');
-      const piiWarning = document.createElement('div');
-      piiWarning.className = 'aai-crm-pii-warning';
-      piiWarning.innerHTML = `⚠️ PII detected and redacted (${piiTypes.join(', ')}) before sending to OpenAI`;
-      originalLabel.parentNode.insertBefore(piiWarning, originalLabel.nextSibling);
-    }
+  // Show PII warning if detected (once per modal)
+  if (hasPII && !modal.querySelector('.aai-crm-pii-warning')) {
+    const originalLabel = modal.querySelector('.aai-crm-section label');
+    const piiWarning = document.createElement('div');
+    piiWarning.className = 'aai-crm-pii-warning';
+    piiWarning.textContent = `⚠️ PII detected and redacted (${piiTypes.join(', ')}) before sending to OpenAI`;
+    originalLabel.parentNode.insertBefore(piiWarning, originalLabel.nextSibling);
+  }
 
-    // Determine action and response key based on mode
-    const action = currentMode === 'enhance' ? 'enhanceText' : 'suggestResponse';
-    const responseKey = currentMode === 'enhance' ? 'enhancedText' : 'suggestedResponse';
-
-    // Send request to background script with redacted text
-    const response = await chrome.runtime.sendMessage({
-      action: action,
-      text: redactedText,
-      additionalContext: additionalContext
-    });
-
-    if (response.error) {
-      throw new Error(response.error);
-    }
-
-    // Show result
+  const showError = (message) => {
+    console.error('AAI CRM Extension: Error generating result', message);
     loadingEl.style.display = 'none';
-    textareaEl.style.display = 'block';
-    textareaEl.value = response[responseKey];
-    buttons.forEach(btn => btn.style.display = 'inline-block');
-
-    // Hide flair section after regeneration
-    if (additionalContext) {
-      modal.querySelector('.aai-crm-flair-section').style.display = 'none';
-      modal.querySelector('.aai-crm-flair-input').value = '';
-    }
-
-  } catch (error) {
-    console.error('AAI CRM Extension: Error generating result', error);
-    loadingEl.style.display = 'none';
+    textareaEl.style.display = 'none';
     errorEl.style.display = 'block';
-    errorEl.textContent = `Error: ${error.message}. Please try again or check your settings.`;
+    errorEl.textContent = `Error: ${message}. Please try again or check your settings.`;
 
     // Show retry button
     const retryBtn = document.createElement('button');
@@ -512,10 +492,73 @@ async function generateEnhancedText(additionalContext = '') {
     retryBtn.textContent = 'Retry';
     retryBtn.style.marginTop = '10px';
     retryBtn.addEventListener('click', () => {
-      errorEl.innerHTML = '';
+      errorEl.textContent = '';
       generateEnhancedText(additionalContext);
     });
     errorEl.appendChild(retryBtn);
+  };
+
+  const port = chrome.runtime.connect({ name: 'aai-generate' });
+  generationPort = port;
+
+  port.onMessage.addListener((message) => {
+    if (port !== generationPort || !modal) {
+      return; // Superseded by a newer request or modal closed
+    }
+
+    if (message.type === 'delta') {
+      if (textareaEl.style.display === 'none') {
+        loadingEl.style.display = 'none';
+        textareaEl.style.display = 'block';
+      }
+      textareaEl.value += message.text;
+      textareaEl.scrollTop = textareaEl.scrollHeight;
+    } else if (message.type === 'done') {
+      generationPort = null;
+      port.disconnect();
+      loadingEl.style.display = 'none';
+      textareaEl.style.display = 'block';
+      textareaEl.readOnly = false;
+      textareaEl.value = message.text;
+      buttons.forEach(btn => btn.style.display = 'inline-block');
+
+      // Hide flair section after regeneration
+      if (additionalContext) {
+        modal.querySelector('.aai-crm-flair-section').style.display = 'none';
+        modal.querySelector('.aai-crm-flair-input').value = '';
+      }
+    } else if (message.type === 'error') {
+      generationPort = null;
+      port.disconnect();
+      showError(message.error);
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    // Background worker went away without finishing (e.g. extension reloaded)
+    if (port === generationPort) {
+      generationPort = null;
+      if (modal) {
+        showError('Connection to extension lost');
+      }
+    }
+  });
+
+  port.postMessage({
+    mode: currentMode,
+    text: redactedText,
+    additionalContext: additionalContext
+  });
+}
+
+/**
+ * Cancel an in-progress generation, if any
+ */
+function cancelGeneration() {
+  if (generationPort) {
+    const port = generationPort;
+    generationPort = null;
+    port.disconnect();
   }
 }
 
@@ -756,6 +799,7 @@ async function copyAndClose() {
  * Close the modal
  */
 function closeModal() {
+  cancelGeneration();
   if (modal) {
     modal.remove();
     modal = null;

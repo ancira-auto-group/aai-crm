@@ -8,11 +8,13 @@ const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const openSettingsBtn = document.getElementById('openSettings');
 const testOnPageBtn = document.getElementById('testOnPage');
+const versionText = document.getElementById('versionText');
 
 /**
  * Initialize popup
  */
 function init() {
+  versionText.textContent = `Version ${chrome.runtime.getManifest().version}`;
   checkConfiguration();
   setupEventListeners();
 }
@@ -20,14 +22,14 @@ function init() {
 /**
  * Check if extension is properly configured
  */
-async function checkConfiguration() {
-  chrome.storage.local.get(['openai_api_key', 'system_prompt'], (result) => {
-    if (!result.openai_api_key) {
+function checkConfiguration() {
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (status) => {
+    if (chrome.runtime.lastError || !status?.hasApiKey) {
       statusDot.classList.add('inactive');
       statusText.textContent = 'API key not configured';
     } else {
       statusDot.classList.remove('inactive');
-      statusText.textContent = 'Ready to enhance text';
+      statusText.textContent = `Ready to enhance text (${status.model})`;
     }
   });
 }

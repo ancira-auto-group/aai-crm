@@ -8,6 +8,15 @@ const apiKeyInput = document.getElementById('apiKey');
 const saveApiKeyBtn = document.getElementById('saveApiKey');
 const testConnectionBtn = document.getElementById('testConnection');
 const apiStatusBox = document.getElementById('apiStatus');
+const rememberApiKeyInput = document.getElementById('rememberApiKey');
+
+// Model elements
+const modelSelect = document.getElementById('model');
+const modelStatusBox = document.getElementById('modelStatus');
+
+// Usage elements
+const usageBody = document.getElementById('usageBody');
+const resetUsageBtn = document.getElementById('resetUsage');
 
 // Enhancement prompt elements
 const enhanceUrlInput = document.getElementById('enhanceUrl');
@@ -34,17 +43,33 @@ function init() {
 /**
  * Load settings from storage
  */
-function loadSettings() {
-  // Load API key (show masked version)
+async function loadSettings() {
+  // Model dropdown
+  for (const [id, model] of Object.entries(AAI_MODELS)) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = `${model.label} - $${model.inputPer1M.toFixed(2)} in / $${model.outputPer1M.toFixed(2)} out per 1M tokens`;
+    modelSelect.appendChild(option);
+  }
+
+  // API key lives in session storage unless the user chose to remember it
+  const session = await chrome.storage.session.get(['openai_api_key']);
+
   chrome.storage.local.get([
-    'openai_api_key',
+    'openai_api_key', 'remember_api_key', 'model', 'usage_stats',
     'enhance_url', 'enhance_last_updated',
     'response_url', 'response_last_updated'
   ], (result) => {
-    if (result.openai_api_key) {
-      apiKeyInput.value = maskApiKey(result.openai_api_key);
-      apiKeyInput.dataset.originalKey = result.openai_api_key;
+    const apiKey = session.openai_api_key || result.openai_api_key;
+    if (apiKey) {
+      apiKeyInput.value = maskApiKey(apiKey);
+      apiKeyInput.dataset.originalKey = apiKey;
     }
+    rememberApiKeyInput.checked = !!result.remember_api_key;
+
+    modelSelect.value = AAI_MODELS[result.model] ? result.model : AAI_DEFAULT_MODEL;
+
+    renderUsage(result.usage_stats);
 
     // Enhancement prompt
     if (result.enhance_url) {
@@ -73,6 +98,18 @@ function setupEventListeners() {
   testConnectionBtn.addEventListener('click', testConnection);
   apiKeyInput.addEventListener('focus', handleApiKeyFocus);
   apiKeyInput.addEventListener('blur', handleApiKeyBlur);
+  rememberApiKeyInput.addEventListener('change', handleRememberChange);
+
+  // Model handler
+  modelSelect.addEventListener('change', saveModel);
+
+  // Usage handlers
+  resetUsageBtn.addEventListener('click', resetUsage);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.usage_stats) {
+      renderUsage(changes.usage_stats.newValue);
+    }
+  });
 
   // Enhancement prompt handlers
   saveEnhanceUrlBtn.addEventListener('click', saveEnhanceUrl);
@@ -136,7 +173,7 @@ async function saveApiKey() {
   }
 
   try {
-    await chrome.storage.local.set({ openai_api_key: apiKey });
+    await storeApiKey(apiKey, rememberApiKeyInput.checked);
     apiKeyInput.dataset.originalKey = apiKey;
     apiKeyInput.value = maskApiKey(apiKey);
     apiKeyInput.type = 'password';
@@ -145,6 +182,108 @@ async function saveApiKey() {
     console.error('Error saving API key:', error);
     showStatus(apiStatusBox, 'Failed to save API key', 'error');
   }
+}
+
+/**
+ * Store the API key in session storage (cleared when the browser closes)
+ * or local storage (remembered), and remove it from the other.
+ */
+async function storeApiKey(apiKey, remember) {
+  if (remember) {
+    await chrome.storage.local.set({ openai_api_key: apiKey, remember_api_key: true });
+    await chrome.storage.session.remove('openai_api_key');
+  } else {
+    await chrome.storage.session.set({ openai_api_key: apiKey });
+    await chrome.storage.local.remove('openai_api_key');
+    await chrome.storage.local.set({ remember_api_key: false });
+  }
+}
+
+/**
+ * Move an already-saved key when the "remember" checkbox changes
+ */
+async function handleRememberChange() {
+  const apiKey = apiKeyInput.dataset.originalKey;
+  const remember = rememberApiKeyInput.checked;
+
+  try {
+    if (apiKey) {
+      await storeApiKey(apiKey, remember);
+      showStatus(apiStatusBox, remember
+        ? 'API key will be remembered on this computer.'
+        : 'API key will be forgotten when the browser closes.', 'success');
+    } else {
+      await chrome.storage.local.set({ remember_api_key: remember });
+    }
+  } catch (error) {
+    console.error('Error updating API key storage:', error);
+    showStatus(apiStatusBox, 'Failed to update API key storage', 'error');
+  }
+}
+
+/**
+ * Save selected model
+ */
+async function saveModel() {
+  try {
+    await chrome.storage.local.set({ model: modelSelect.value });
+    showStatus(modelStatusBox, `Model set to ${modelSelect.value}`, 'success');
+  } catch (error) {
+    console.error('Error saving model:', error);
+    showStatus(modelStatusBox, 'Failed to save model', 'error');
+  }
+}
+
+/**
+ * Render monthly usage stats, newest month first, with an all-time total
+ */
+function renderUsage(stats) {
+  usageBody.textContent = '';
+  const months = Object.keys(stats || {}).sort().reverse();
+
+  if (months.length === 0) {
+    const row = usageBody.insertRow();
+    const cell = row.insertCell();
+    cell.colSpan = 5;
+    cell.textContent = 'No usage recorded yet';
+    return;
+  }
+
+  const total = { requests: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0 };
+  const addRow = (label, bucket, className) => {
+    const row = usageBody.insertRow();
+    if (className) row.className = className;
+    [
+      label,
+      bucket.requests.toLocaleString(),
+      bucket.input_tokens.toLocaleString(),
+      bucket.output_tokens.toLocaleString(),
+      `$${bucket.cost_usd.toFixed(bucket.cost_usd < 0.01 ? 5 : bucket.cost_usd < 1 ? 4 : 2)}`
+    ].forEach(value => { row.insertCell().textContent = value; });
+  };
+
+  for (const month of months) {
+    const bucket = stats[month];
+    addRow(month, bucket);
+    for (const key of Object.keys(total)) {
+      total[key] += bucket[key];
+    }
+  }
+
+  if (months.length > 1) {
+    addRow('All time', total, 'total');
+  }
+}
+
+/**
+ * Reset usage stats
+ */
+async function resetUsage() {
+  if (!confirm('Reset all recorded usage?')) {
+    return;
+  }
+  await chrome.storage.local.remove('usage_stats');
+  renderUsage(null);
 }
 
 /**
@@ -165,11 +304,12 @@ async function testConnection() {
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'testApiKey',
-      apiKey: apiKey
+      apiKey: apiKey,
+      model: modelSelect.value
     });
 
     if (response.success) {
-      showStatus(apiStatusBox, 'Connection successful! API key is valid.', 'success');
+      showStatus(apiStatusBox, `Connection successful! API key is valid and has access to ${response.model}.`, 'success');
     } else {
       showStatus(apiStatusBox, `Connection failed: ${response.error}`, 'error');
     }

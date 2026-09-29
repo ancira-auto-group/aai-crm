@@ -134,30 +134,44 @@ You can adjust AI behavior by modifying `background.js`:
 ### Temperature (Creativity)
 
 ```javascript
-// In background.js, find the callOpenAI function
-temperature: 0.7  // Default
+// Constants at the top of background.js
+const TEMPERATURE = 0.7;  // Default
 
 // Lower (0.3-0.5) = More consistent, predictable
 // Higher (0.8-1.0) = More creative, varied
 ```
 
-### Max Tokens (Response Length)
+GPT-6 models only accept `temperature` when `reasoning_effort` is `'none'`. If you change `REASONING_EFFORT`, remove `temperature` from the request body in `streamOpenAI()` or the API returns a 400 error.
+
+### Reasoning Effort
 
 ```javascript
-max_tokens: 800  // Default
+const REASONING_EFFORT = 'none';  // Default - fastest, no hidden reasoning tokens
+
+// Also: 'low', 'medium', 'high', 'xhigh', 'max'
+// Higher effort = slower and more expensive; reasoning tokens count toward max_completion_tokens
+```
+
+### Max Completion Tokens (Response Length)
+
+```javascript
+const MAX_COMPLETION_TOKENS = 800;  // Default
 
 // Lower (400-600) = Shorter responses, lower cost
 // Higher (1000-1500) = Longer responses, higher cost
 ```
 
+GPT-6 models reject the older `max_tokens` parameter; use `max_completion_tokens`.
+
 ### Model Selection
 
-```javascript
-const MODEL = 'gpt-4o-mini';  // Default - fast, cheap
+Pick the model in **Settings → AI Model**. To add a model to the dropdown, add an entry to `models.js` with its prices (used for cost estimates):
 
-// Alternatives:
-// 'gpt-4o' - Better quality, higher cost
-// 'gpt-4-turbo' - Balance of speed and quality
+```javascript
+const AAI_MODELS = {
+  'gpt-6-luna': { label: 'GPT-6 Luna (recommended)', inputPer1M: 0.10, outputPer1M: 0.50 },
+  'gpt-6-sol':  { label: 'GPT-6 Sol (higher quality)', inputPer1M: 2.00, outputPer1M: 10.00 }
+};
 ```
 
 ## Content Script Customization

@@ -1,15 +1,17 @@
 # AAI for CRM Chrome Extension
 
-A production-ready Chrome extension that enhances text on VinSolutions CRM pages using OpenAI's GPT-4o-mini model. Select any text, click the enhancement button, and get AI-powered suggestions to improve clarity, professionalism, and impact.
+A production-ready Chrome extension that enhances text on VinSolutions CRM pages using OpenAI's GPT-6 Luna model. Select any text, click the enhancement button, and get AI-powered suggestions to improve clarity, professionalism, and impact.
 
 ## Features
 
 - **Smart Text Selection**: Automatically detects text selections (10+ characters) and displays a floating action button
-- **AI-Powered Enhancement**: Uses OpenAI's GPT-4o-mini for fast, cost-effective text improvements
+- **AI-Powered Enhancement**: Uses OpenAI's GPT-6 Luna (default) or GPT-6 Sol, selectable in settings
+- **Streaming Responses**: Suggestions appear word-by-word as they're generated
+- **Usage Tracking**: Monthly token counts and estimated cost on the settings page
 - **Professional UI**: Clean, modern interface with smooth animations and intuitive controls
 - **Flexible Regeneration**: "Mix It Up" to regenerate or "Add Some Flair" for custom instructions
 - **Daily Prompt Updates**: Automatically refreshes system prompt from a GitHub Gist every day at 00:01
-- **Secure Storage**: API keys stored locally, never shared or transmitted except to OpenAI
+- **Secure Key Storage**: API key kept in memory for the browser session by default (optionally remembered), and never readable by CRM pages
 - **Error Handling**: Comprehensive error handling with user-friendly messages and retry options
 
 ## Installation
@@ -195,19 +197,25 @@ chrome-extension/
 
 ## API Usage and Costs
 
-### Model: GPT-4o-mini
+### Models
 
-- **Cost**: ~$0.00015 per request (based on typical text lengths)
-- **Speed**: ~1-2 seconds per enhancement
-- **Token limits**: 800 max tokens per response
+Choose the model in **Settings → AI Model**:
 
-### Estimated Costs
+| Model | Input / Output (per 1M tokens) | Notes |
+|---|---|---|
+| `gpt-6-luna` (default) | $0.10 / $0.50 | Fast, cheapest; ideal for rewriting and short replies |
+| `gpt-6-sol` | $2.00 / $10.00 | Higher quality, ~20x the cost |
 
-- **Light usage** (10 enhancements/day): ~$0.05/month
-- **Moderate usage** (50 enhancements/day): ~$0.23/month
-- **Heavy usage** (200 enhancements/day): ~$0.90/month
+Requests use the Chat Completions API with streaming, `reasoning_effort: "none"` (no hidden reasoning tokens, fastest replies), `temperature: 0.7` and `max_completion_tokens: 800`.
 
-*Costs are estimates and may vary based on input/output length*
+### Estimated Costs (GPT-6 Luna)
+
+- **Cost**: ~$0.0001 per request (typical text lengths)
+- **Light usage** (10 requests/day): ~$0.04/month
+- **Moderate usage** (50 requests/day): ~$0.19/month
+- **Heavy usage** (200 requests/day): ~$0.75/month
+
+*Costs are estimates and vary with input/output length. The settings page shows actual token usage and estimated cost per month for this browser.*
 
 ## Troubleshooting
 
@@ -220,10 +228,12 @@ chrome-extension/
 
 ### API Key Issues
 
-1. **Invalid Key Error**: Make sure key starts with `sk-`
-2. **401 Unauthorized**: Check that your OpenAI account is active
-3. **429 Rate Limit**: You've exceeded your API quota; check [OpenAI usage](https://platform.openai.com/usage)
-4. **Insufficient Credits**: Add credits to your OpenAI account
+1. **Key disappears after restarting Chrome**: That's the default for security. Tick "Remember my API key" in settings to keep it
+2. **Invalid Key Error**: Make sure key starts with `sk-`
+3. **401 Unauthorized**: Check that your OpenAI account is active
+4. **Model not available**: Your key's project doesn't have access to the selected model; pick another in settings or enable it in the OpenAI dashboard
+5. **429 Rate Limit**: You've exceeded your API quota; check [OpenAI usage](https://platform.openai.com/usage)
+6. **Insufficient Credits**: Add credits to your OpenAI account
 
 ### Text Not Enhancing
 
@@ -263,7 +273,8 @@ chrome-extension/
 
 ## Security & Privacy
 
-- **API keys** stored in `chrome.storage.local` (never leaves your device except to OpenAI)
+- **API keys** stored in `chrome.storage.session` (memory only, cleared when the browser closes) unless you choose to remember it, in which case `chrome.storage.local` is used. Content scripts never read the key; only the background worker does, and it's only sent to OpenAI
+- **Use a spend-limited key**: create a dedicated OpenAI project key with a monthly budget for this extension
 - **No tracking or analytics** - this extension sends no data anywhere except OpenAI API
 - **No external dependencies** - pure JavaScript, no third-party libraries
 - **Scoped permissions** - only runs on specified VinSolutions domains
@@ -291,6 +302,15 @@ For issues, questions, or feature requests:
 This extension is provided as-is for use with VinSolutions CRM. Modify and distribute according to your organization's policies.
 
 ## Changelog
+
+### Version 2.1.0
+
+- Switched to GPT-6 Luna (default) with GPT-6 Sol selectable in settings
+- Fixed API parameters for GPT-6 (`max_completion_tokens`, `reasoning_effort: "none"`)
+- Streaming responses in the modal; closing the modal cancels the request
+- API key kept in session storage by default, with an opt-in "remember" setting
+- Monthly usage and estimated cost on the settings page
+- "Test Connection" now checks access to the selected model without spending tokens
 
 ### Version 1.0.0 (2024)
 

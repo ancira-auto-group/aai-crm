@@ -3,11 +3,16 @@
  * Handles OpenAI API calls and system prompt refresh
  */
 
+importScripts('models.js');
+
 // Constants
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-5-mini'; // Using gpt-5-mini for enhanced performance
-const MAX_TOKENS = 800;
-const API_TIMEOUT_MS = 15000;
+const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
+const MAX_COMPLETION_TOKENS = 800;
+const TEMPERATURE = 0.7; // Only honored because reasoning_effort is 'none'
+const REASONING_EFFORT = 'none'; // Text rewriting doesn't need reasoning; keeps replies fast and cheap
+const API_TIMEOUT_MS = 15000; // Max wait for the first byte, and between streamed chunks
+const GENERATE_PORT_NAME = 'aai-generate';
 const DAILY_ALARM_ENHANCE = 'dailyEnhancePromptRefresh';
 const DAILY_ALARM_RESPONSE = 'dailyResponsePromptRefresh';
 const PROMPT_REFRESH_TIME = { hour: 0, minute: 1 }; // 00:01 local time
@@ -44,8 +49,17 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Initialize storage with defaults if needed
   chrome.storage.local.get([
     'enhance_prompt', 'enhance_url',
-    'response_prompt', 'response_url'
+    'response_prompt', 'response_url',
+    'openai_api_key', 'remember_api_key', 'model'
   ], (result) => {
+    // Keys saved before session-only storage existed stay remembered, so upgrades don't lose them
+    if (result.openai_api_key && result.remember_api_key === undefined) {
+      chrome.storage.local.set({ remember_api_key: true });
+    }
+    if (!result.model || !AAI_MODELS[result.model]) {
+      chrome.storage.local.set({ model: AAI_DEFAULT_MODEL });
+    }
+
     // Enhancement prompt
     if (!result.enhance_prompt) {
       chrome.storage.local.set({
@@ -249,27 +263,36 @@ async function fetchResponsePrompt() {
   }
 }
 
+
 /**
- * Handle messages from content script
+ * Get the API key: session storage (default, cleared when the browser closes)
+ * or local storage (when the user opted to remember it).
+ */
+async function getApiKey() {
+  const session = await chrome.storage.session.get(['openai_api_key']);
+  if (session.openai_api_key) {
+    return session.openai_api_key;
+  }
+  const local = await chrome.storage.local.get(['openai_api_key']);
+  return local.openai_api_key || null;
+}
+
+/**
+ * Get the configured model, falling back to the default if unknown
+ */
+async function getModel() {
+  const result = await chrome.storage.local.get(['model']);
+  return AAI_MODELS[result.model] ? result.model : AAI_DEFAULT_MODEL;
+}
+
+/**
+ * Handle one-shot messages from content script, popup and options page
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'enhanceText') {
-    handleEnhanceText(request.text, request.additionalContext)
-      .then(sendResponse)
-      .catch((error) => {
-        console.error('AAI CRM Extension: Error in enhanceText', error);
-        sendResponse({ error: error.message });
-      });
-    return true; // Keep channel open for async response
-  }
-
-  if (request.action === 'suggestResponse') {
-    handleSuggestResponse(request.text, request.additionalContext)
-      .then(sendResponse)
-      .catch((error) => {
-        console.error('AAI CRM Extension: Error in suggestResponse', error);
-        sendResponse({ error: error.message });
-      });
+  if (request.action === 'getStatus') {
+    Promise.all([getApiKey(), getModel()])
+      .then(([apiKey, model]) => sendResponse({ hasApiKey: !!apiKey, model }))
+      .catch((error) => sendResponse({ hasApiKey: false, error: error.message }));
     return true;
   }
 
@@ -294,7 +317,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'testApiKey') {
-    testApiKey(request.apiKey)
+    testApiKey(request.apiKey, request.model)
       .then(sendResponse)
       .catch((error) => {
         console.error('AAI CRM Extension: Error in testApiKey', error);
@@ -305,91 +328,137 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 /**
- * Handle text enhancement request
+ * Handle streaming generation requests from the content script.
+ * Protocol (port messages to the content script):
+ *   { type: 'delta', text }  - next chunk of generated text
+ *   { type: 'done', text, usage } - generation finished
+ *   { type: 'error', error } - generation failed
+ * Disconnecting the port (e.g. closing the modal) cancels the request.
+ * One request per port.
  */
-async function handleEnhanceText(text, additionalContext = '') {
-  try {
-    // Get API key and enhance prompt from storage
-    const result = await chrome.storage.local.get(['openai_api_key', 'enhance_prompt']);
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== GENERATE_PORT_NAME) {
+    return;
+  }
 
-    if (!result.openai_api_key) {
-      throw new Error('OpenAI API key not configured');
+  const controller = new AbortController();
+  let disconnected = false;
+
+  port.onDisconnect.addListener(() => {
+    disconnected = true;
+    controller.abort();
+  });
+
+  const post = (message) => {
+    if (!disconnected) {
+      port.postMessage(message);
     }
+  };
 
-    const systemPrompt = result.enhance_prompt || DEFAULT_ENHANCE_PROMPT;
+  port.onMessage.addListener(async (request) => {
+    try {
+      const messages = await buildMessages(request.mode, request.text, request.additionalContext);
+      const apiKey = await getApiKey();
 
-    // Build messages
-    const messages = [
-      { role: 'system', content: systemPrompt },
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+
+      const model = await getModel();
+      const { text, usage } = await streamOpenAI(apiKey, model, messages, controller.signal, (delta) => {
+        post({ type: 'delta', text: delta });
+      });
+
+      if (usage) {
+        await recordUsage(model, usage);
+      }
+
+      post({ type: 'done', text: text.trim(), usage });
+    } catch (error) {
+      if (disconnected) {
+        return; // Cancelled by the user, nobody to report to
+      }
+      console.error('AAI CRM Extension: Error generating text', error);
+      post({ type: 'error', error: error.message });
+    }
+    // The content script disconnects once it has received 'done' or 'error'
+  });
+});
+
+/**
+ * Build the chat messages for enhance or response mode
+ */
+async function buildMessages(mode, text, additionalContext = '') {
+  let messages;
+
+  if (mode === 'enhance') {
+    const result = await chrome.storage.local.get(['enhance_prompt']);
+    messages = [
+      { role: 'system', content: result.enhance_prompt || DEFAULT_ENHANCE_PROMPT },
       { role: 'user', content: `Please enhance the following text:\n\n${text}` }
     ];
-
-    // Add additional context if provided
-    if (additionalContext) {
-      messages.push({
-        role: 'user',
-        content: `Additional instructions: ${additionalContext}`
-      });
-    }
-
-    // Call OpenAI API
-    const enhancedText = await callOpenAI(result.openai_api_key, messages);
-
-    return { enhancedText };
-
-  } catch (error) {
-    console.error('AAI CRM Extension: Error enhancing text', error);
-    throw error;
-  }
-}
-
-/**
- * Handle response suggestion request
- */
-async function handleSuggestResponse(text, additionalContext = '') {
-  try {
-    // Get API key and response prompt from storage
-    const result = await chrome.storage.local.get(['openai_api_key', 'response_prompt']);
-
-    if (!result.openai_api_key) {
-      throw new Error('OpenAI API key not configured');
-    }
-
-    const systemPrompt = result.response_prompt || DEFAULT_RESPONSE_PROMPT;
-
-    // Build messages
-    const messages = [
-      { role: 'system', content: systemPrompt },
+  } else if (mode === 'response') {
+    const result = await chrome.storage.local.get(['response_prompt']);
+    messages = [
+      { role: 'system', content: result.response_prompt || DEFAULT_RESPONSE_PROMPT },
       { role: 'user', content: text }
     ];
-
-    // Add additional context if provided
-    if (additionalContext) {
-      messages.push({
-        role: 'user',
-        content: `Additional instructions: ${additionalContext}`
-      });
-    }
-
-    // Call OpenAI API
-    const suggestedResponse = await callOpenAI(result.openai_api_key, messages);
-
-    return { suggestedResponse };
-
-  } catch (error) {
-    console.error('AAI CRM Extension: Error suggesting response', error);
-    throw error;
+  } else {
+    throw new Error(`Unknown mode: ${mode}`);
   }
+
+  if (additionalContext) {
+    messages.push({
+      role: 'user',
+      content: `Additional instructions: ${additionalContext}`
+    });
+  }
+
+  return messages;
 }
 
 /**
- * Call OpenAI API
+ * Convert an OpenAI error response into a user-facing Error
  */
-async function callOpenAI(apiKey, messages) {
+async function toApiError(response) {
+  const errorData = await response.json().catch(() => ({}));
+  const errorMessage = errorData.error?.message || `API Error: ${response.status} ${response.statusText}`;
+
+  if (response.status === 401) {
+    return new Error('Invalid API key. Please check your settings.');
+  } else if (response.status === 404) {
+    return new Error(`Model not available for this API key. ${errorMessage}`);
+  } else if (response.status === 429) {
+    return new Error('Rate limit exceeded. Please try again later.');
+  } else if (response.status === 500 || response.status === 503) {
+    return new Error('OpenAI service temporarily unavailable. Please try again.');
+  }
+  return new Error(errorMessage);
+}
+
+/**
+ * Call the OpenAI Chat Completions API with streaming.
+ * Calls onDelta for each chunk of text; resolves with the full text and token usage.
+ */
+async function streamOpenAI(apiKey, model, messages, externalSignal, onDelta) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  let timedOut = false;
+  let timeoutId = null;
+
+  // Abort if the server goes quiet for too long (before the first byte or between chunks)
+  const resetTimeout = () => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, API_TIMEOUT_MS);
+  };
+  const onExternalAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onExternalAbort);
 
   try {
+    resetTimeout();
+
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
@@ -397,65 +466,161 @@ async function callOpenAI(apiKey, messages) {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: MODEL,
-        messages: messages,
-        max_tokens: MAX_TOKENS,
-        temperature: 0.7
+        model,
+        messages,
+        max_completion_tokens: MAX_COMPLETION_TOKENS,
+        reasoning_effort: REASONING_EFFORT,
+        temperature: TEMPERATURE,
+        stream: true,
+        stream_options: { include_usage: true }
       }),
       signal: controller.signal
     });
 
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.error?.message || `API Error: ${response.status} ${response.statusText}`;
+      throw await toApiError(response);
+    }
 
-      if (response.status === 401) {
-        throw new Error('Invalid API key. Please check your settings.');
-      } else if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
-      } else if (response.status === 500 || response.status === 503) {
-        throw new Error('OpenAI service temporarily unavailable. Please try again.');
-      } else {
-        throw new Error(errorMessage);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+    let usage = null;
+    let finishReason = null;
+
+    // Parse server-sent events: lines of "data: {json}", terminated by "data: [DONE]"
+    while (true) {
+      resetTimeout();
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep any partial line for the next chunk
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) {
+          continue;
+        }
+
+        const data = trimmed.slice(5).trim();
+        if (data === '[DONE]') {
+          continue;
+        }
+
+        const chunk = JSON.parse(data);
+        if (chunk.error) {
+          throw new Error(chunk.error.message || 'OpenAI streaming error');
+        }
+        if (chunk.usage) {
+          usage = chunk.usage;
+        }
+
+        const choice = chunk.choices?.[0];
+        const delta = choice?.delta?.content;
+        if (delta) {
+          text += delta;
+          onDelta(delta);
+        }
+        if (choice?.finish_reason) {
+          finishReason = choice.finish_reason;
+        }
       }
     }
 
-    const data = await response.json();
-
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error('Invalid response from OpenAI API');
+    if (!text.trim()) {
+      throw new Error('Empty response from OpenAI API');
+    }
+    if (finishReason === 'length') {
+      console.warn('AAI CRM Extension: Response hit max_completion_tokens and may be cut off');
     }
 
-    return data.choices[0].message.content.trim();
+    return { text, usage };
 
   } catch (error) {
-    clearTimeout(timeoutId);
-
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Please try again.');
+      throw new Error(timedOut ? 'Request timed out. Please try again.' : 'Request cancelled.');
     }
-
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
   }
 }
 
 /**
- * Test API key validity
+ * Estimate the USD cost of a request from its token usage
  */
-async function testApiKey(apiKey) {
-  try {
-    const messages = [
-      { role: 'system', content: 'You are a helpful assistant.' },
-      { role: 'user', content: 'Say "OK"' }
-    ];
+function estimateCost(model, usage) {
+  const pricing = AAI_MODELS[model];
+  if (!pricing) {
+    return 0;
+  }
+  return (usage.prompt_tokens * pricing.inputPer1M + usage.completion_tokens * pricing.outputPer1M) / 1e6;
+}
 
-    await callOpenAI(apiKey, messages);
-    return { success: true };
+// Serializes usage writes so concurrent requests don't overwrite each other
+let usageWriteChain = Promise.resolve();
+
+/**
+ * Record token usage and estimated cost, bucketed by month (YYYY-MM)
+ */
+function recordUsage(model, usage) {
+  const cost = estimateCost(model, usage);
+  console.log(
+    `AAI CRM Extension: ${model} used ${usage.prompt_tokens} input + ${usage.completion_tokens} output tokens (~$${cost.toFixed(5)})`
+  );
+
+  usageWriteChain = usageWriteChain.then(async () => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const result = await chrome.storage.local.get(['usage_stats']);
+    const stats = result.usage_stats || {};
+    const bucket = stats[month] || { requests: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0 };
+
+    bucket.requests += 1;
+    bucket.input_tokens += usage.prompt_tokens;
+    bucket.output_tokens += usage.completion_tokens;
+    bucket.cost_usd += cost;
+    stats[month] = bucket;
+
+    await chrome.storage.local.set({ usage_stats: stats });
+  }).catch((error) => {
+    console.error('AAI CRM Extension: Error recording usage', error);
+  });
+
+  return usageWriteChain;
+}
+
+/**
+ * Test API key validity and access to the selected model.
+ * Uses the free model-lookup endpoint, so it costs no tokens.
+ */
+async function testApiKey(apiKey, model) {
+  const modelId = AAI_MODELS[model] ? model : await getModel();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${OPENAI_MODELS_URL}/${encodeURIComponent(modelId)}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw await toApiError(response);
+    }
+
+    return { success: true, model: modelId };
 
   } catch (error) {
-    return { success: false, error: error.message };
+    const message = error.name === 'AbortError' ? 'Request timed out. Please try again.' : error.message;
+    return { success: false, error: message };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

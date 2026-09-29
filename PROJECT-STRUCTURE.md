@@ -13,10 +13,16 @@ Complete file listing and descriptions for the Chrome extension.
 **Purpose**: Service worker for API calls and background tasks
 **Contains**: OpenAI API integration, system prompt refresh, daily alarms
 **Key Functions**:
-- `handleEnhanceText()` - Process text enhancement requests
-- `callOpenAI()` - Make API calls to OpenAI
-- `fetchSystemPrompt()` - Retrieve and cache system prompt
-- `testApiKey()` - Validate API key
+- `onConnect` listener - Streams enhance/response generations to the content script over a port
+- `buildMessages()` - Build chat messages for enhance or response mode
+- `streamOpenAI()` - Streaming Chat Completions call
+- `recordUsage()` - Track monthly token usage and estimated cost
+- `fetchEnhancePrompt()` / `fetchResponsePrompt()` - Retrieve and cache system prompts
+- `testApiKey()` - Validate API key and model access
+
+### models.js
+**Purpose**: Shared model catalog (IDs, labels, prices)
+**Used by**: background.js (`importScripts`) and options.html
 
 ### content.js
 **Purpose**: Content script injected into VinSolutions pages
@@ -25,7 +31,7 @@ Complete file listing and descriptions for the Chrome extension.
 - `checkSelection()` - Detect valid text selections
 - `showFloatingButton()` - Display enhancement button
 - `createModal()` - Generate and show modal UI
-- `generateEnhancedText()` - Request enhancement from background
+- `generateEnhancedText()` - Stream enhancement/response from background into the modal
 - `copyAndClose()` - Copy to clipboard and close modal
 
 ### styles/content.css
@@ -146,7 +152,7 @@ External Dependencies:
 ## Security Considerations
 
 ### Sensitive Data
-- **API Key**: Stored in `chrome.storage.local` (never synced)
+- **API Key**: Stored in `chrome.storage.session` by default (memory only), or `chrome.storage.local` if the user opts to remember it; never synced, never read by content scripts
 - **System Prompt**: Cached locally, fetched from public URL
 - **User Text**: Sent only to OpenAI API, not logged
 
