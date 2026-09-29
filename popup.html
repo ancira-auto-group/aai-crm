@@ -116,6 +116,58 @@
       background: #f9fafb;
     }
 
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #374151;
+      margin-top: 6px;
+    }
+
+    kbd {
+      font-family: inherit;
+      font-size: 12px;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 1px 6px;
+      color: #111827;
+    }
+
+    .link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 10px;
+      color: #667eea;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .link-btn:hover {
+      text-decoration: underline;
+    }
+
     .footer {
       text-align: center;
       padding: 16px;
@@ -141,8 +193,28 @@
       </div>
     </div>
 
+    <div class="info-card">
+      <h3>This Month</h3>
+      <div class="stats">
+        <div>
+          <div class="stat-value" id="monthRequests">0</div>
+          <div class="stat-label">requests</div>
+        </div>
+        <div>
+          <div class="stat-value" id="monthCost">$0.00</div>
+          <div class="stat-label">estimated cost</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="shortcut-row"><span>Enhance selection</span><kbd id="shortcutEnhance">Not set</kbd></div>
+      <div class="shortcut-row"><span>Reply to selection</span><kbd id="shortcutResponse">Not set</kbd></div>
+      <button class="link-btn" id="editShortcuts">Change shortcuts</button>
+    </div>
+
     <button class="btn" id="openSettings">Open Settings</button>
-    <button class="btn btn-secondary" id="testOnPage">Visit Test Page</button>
   </div>
 
   <div class="footer" id="versionText"></div>

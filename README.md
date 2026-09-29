@@ -4,12 +4,14 @@ A production-ready Chrome extension that enhances text on VinSolutions CRM pages
 
 ## Features
 
-- **Smart Text Selection**: Automatically detects text selections (10+ characters) and displays a floating action button
+- **Smart Text Selection**: Automatically detects text selections (10+ characters) and displays labeled Enhance / Reply buttons, or use keyboard shortcuts
+- **Puts Text Back Where It Belongs**: Replaces the selected text or inserts at your cursor, including inside CRM frames, without touching other fields
 - **AI-Powered Enhancement**: Uses OpenAI's GPT-6 Luna (default) or GPT-6 Sol, selectable in settings
 - **Streaming Responses**: Suggestions appear word-by-word as they're generated
 - **Usage Tracking**: Monthly token counts and estimated cost on the settings page
 - **Professional UI**: Clean, modern interface with smooth animations and intuitive controls
-- **Flexible Regeneration**: "Mix It Up" to regenerate or "Add Some Flair" for custom instructions
+- **Flexible Regeneration**: "Mix It Up", one-click tone tweaks, or "Add Some Flair" for custom instructions, with every version kept
+- **SMS-Aware**: Character count and text-message segment count, flagging characters that shorten each text
 - **Daily Prompt Updates**: Automatically refreshes system prompt from a GitHub Gist every day at 00:01
 - **Secure Key Storage**: API key kept in memory for the browser session by default (optionally remembered), and never readable by CRM pages
 - **Error Handling**: Comprehensive error handling with user-friendly messages and retry options
@@ -149,14 +151,20 @@ Never:
 
 2. Select any text (minimum 10 characters)
 
-3. Click the purple floating button that appears
+3. Click **Enhance** (rewrite the selected text) or **Reply** (suggest a response to the selected customer message), or use the keyboard shortcuts **Alt+Shift+E** / **Alt+Shift+R** (change them at `chrome://extensions/shortcuts`)
 
-4. Review the enhanced text in the modal
+4. Review the result in the modal. It streams in as it's generated, with a character count and how many text messages (SMS segments) it will take
 
 5. Use the action buttons:
-   - **Copy & Close**: Copies enhanced text to clipboard and closes modal
+   - **Copy & Close** (Ctrl/⌘+Enter): Puts the text into the CRM and also copies it to the clipboard
+     - **Enhance** replaces the text you selected, if it was in an editable field and hasn't changed
+     - **Reply** inserts at your cursor in the last field you typed in (or the only text field on the page)
+     - If there's no safe place to put it, it's only copied; paste with Ctrl+V
+   - **Quick tweaks**: One click for Shorter, More formal, Friendlier, Add call-to-action, or Spanish
    - **Mix It Up**: Regenerates with the same prompt for variety
-   - **Add Some Flair**: Opens a field to add custom instructions, then regenerates
+   - **Add Some Flair**: Opens a field for custom instructions; press Enter to regenerate
+   - **‹ 1 / 3 ›**: Every result is kept; step back to an earlier version (your edits are kept too)
+   - **Esc** closes the modal
 
 ### Testing Before VinSolutions
 
@@ -302,6 +310,17 @@ For issues, questions, or feature requests:
 This extension is provided as-is for use with VinSolutions CRM. Modify and distribute according to your organization's policies.
 
 ## Changelog
+
+### Version 2.2.0
+
+- "Copy & Close" now inserts into the right place: replaces the selected text (Enhance) or inserts at the cursor of the last field you typed in (Reply), including in same-origin frames. It no longer pastes into the first text box on the page or wipes rich-text fields, and falls back to clipboard-only when there's no safe target
+- Version history in the modal (‹ 1 / 3 ›), with edits kept per version
+- Quick tweak chips: Shorter, More formal, Friendlier, Add call-to-action, Spanish
+- Character and SMS segment counter
+- Keyboard: Esc to close, Ctrl/⌘+Enter to insert, Enter to submit custom instructions, focus stays in the modal, screen-reader dialog labels
+- Labeled "Enhance" / "Reply" floating buttons
+- Keyboard shortcuts Alt+Shift+E / Alt+Shift+R
+- Popup shows this month's usage and your shortcuts (replaces the "Visit Test Page" button)
 
 ### Version 2.1.1
 

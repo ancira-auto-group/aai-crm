@@ -286,12 +286,36 @@ async function getModel() {
 }
 
 /**
+ * Current keyboard shortcuts for the two actions (empty string if unassigned)
+ */
+async function getShortcuts() {
+  const commands = await chrome.commands.getAll();
+  const shortcutFor = (name) => commands.find(c => c.name === name)?.shortcut || '';
+  return {
+    enhance: shortcutFor('enhance-selection'),
+    response: shortcutFor('reply-to-selection')
+  };
+}
+
+/**
+ * Keyboard shortcuts: ask the page's content script to act on the current selection
+ */
+chrome.commands.onCommand.addListener((command, tab) => {
+  const mode = { 'enhance-selection': 'enhance', 'reply-to-selection': 'response' }[command];
+  if (!mode || !tab?.id) {
+    return;
+  }
+  // Fails harmlessly on pages where the content script doesn't run
+  chrome.tabs.sendMessage(tab.id, { action: 'shortcut', mode }, { frameId: 0 }).catch(() => {});
+});
+
+/**
  * Handle one-shot messages from content script, popup and options page
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getStatus') {
-    Promise.all([getApiKey(), getModel()])
-      .then(([apiKey, model]) => sendResponse({ hasApiKey: !!apiKey, model }))
+    Promise.all([getApiKey(), getModel(), getShortcuts()])
+      .then(([apiKey, model, shortcuts]) => sendResponse({ hasApiKey: !!apiKey, model, shortcuts }))
       .catch((error) => sendResponse({ hasApiKey: false, error: error.message }));
     return true;
   }

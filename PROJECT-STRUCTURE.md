@@ -31,8 +31,10 @@ Complete file listing and descriptions for the Chrome extension.
 - `checkSelection()` - Detect valid text selections
 - `showFloatingButton()` - Display enhancement button
 - `createModal()` - Generate and show modal UI
-- `generateEnhancedText()` - Stream enhancement/response from background into the modal
-- `copyAndClose()` - Copy to clipboard and close modal
+- `generateEnhancedText()` - Stream enhancement/response from background into the modal (each result is a version)
+- `resolveInsertTarget()` / `insertIntoTarget()` - Decide where the result goes and insert it
+- `insertAndClose()` - Insert into the CRM, copy to clipboard, close modal
+- `handleModalKeydown()` - Esc / Ctrl+Enter / focus trap
 
 ### styles/content.css
 **Purpose**: Styles for injected UI elements
