@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAI CRM Extension - Test Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      padding: 40px 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background: #f9fafb;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      border-radius: 12px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      opacity: 0.9;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .card h2 {
+      color: #111827;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .card h3 {
+      color: #374151;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .sample-text {
+      background: #f9fafb;
+      border: 2px dashed #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 16px 0;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .instructions {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+    }
+
+    .instructions strong {
+      color: #92400e;
+    }
+
+    .note {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    ul {
+      margin-left: 24px;
+      margin-top: 8px;
+    }
+
+    li {
+      margin-bottom: 8px;
+      color: #4b5563;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AAI CRM Extension Test Page</h1>
+    <p>Use this page to test the text enhancement features</p>
+  </div>
+
+  <div class="card">
+    <h2>How to Test</h2>
+    <div class="instructions">
+      <strong>Instructions:</strong> Select any text below (minimum 10 characters) to trigger the enhancement button.
+    </div>
+
+    <ul>
+      <li>Make sure you've configured your API key in the extension settings</li>
+      <li>Select text with your mouse (click and drag)</li>
+      <li>Look for the purple floating button near your selection</li>
+      <li>Click the button to see the enhancement modal</li>
+    </ul>
+
+    <div class="note">
+      <strong>Note:</strong> To test on this page, you need to add <code>*://*/*</code> to the <code>matches</code> array in <code>manifest.json</code>, then reload the extension.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sample Texts to Enhance</h2>
+
+    <h3>Customer Follow-Up (Poor Grammar)</h3>
+    <div class="sample-text">
+      Hi john thanks for coming in yesterday. I wanted to follow up about the accord we discussed. I think it would be a great fit for you're family and the price is really good right now. Let me no if you want to come back and we can do a test drive. Also I can get you better financing if you need it just let me know what you think.
+    </div>
+
+    <h3>Service Reminder (Too Casual)</h3>
+    <div class="sample-text">
+      hey there! ur car is due for service soon. we got some good deals on oil changes this month so u should def come in. also ur tires might need rotating too. hit me up when u can and we'll get u scheduled. thx!
+    </div>
+
+    <h3>Sales Pitch (Too Wordy)</h3>
+    <div class="sample-text">
+      I wanted to reach out to you today because I have been thinking about our conversation from last week when you came into the dealership and we talked about the various different options that might be available to you in terms of vehicle selection, and I really think that based on everything we discussed including your budget constraints and your family's needs for space and also considering the fact that you mentioned fuel efficiency was important, the 2024 Honda CR-V would actually be a really excellent choice for you and your family to consider purchasing.
+    </div>
+
+    <h3>Technical Details (Needs Clarity)</h3>
+    <div class="sample-text">
+      The vehicle has got the turbo engine with the CVT transmission and it comes standard with all the safety stuff like the cameras and sensors and things. It gets pretty good gas mileage compared to other ones in its class and the warranty is decent. We have a few in stock in different colors.
+    </div>
+
+    <h3>Appointment Confirmation (Missing Details)</h3>
+    <div class="sample-text">
+      Your appointment is scheduled. Come to the service department. Bring your car. We'll take care of the oil change and check everything. See you then.
+    </div>
+
+    <h3>Professional Email (Already Good - Test Enhancement)</h3>
+    <div class="sample-text">
+      Thank you for your interest in the 2024 Toyota Camry. Based on our discussion, I've prepared a detailed quote that includes the SE trim level with the premium package you requested. The total price comes to $32,500, which includes all applicable rebates and incentives. I've also arranged for a test drive this Saturday at 2 PM. Please let me know if this time works for you, or if you'd prefer to schedule for another day. I'm here to answer any questions you may have.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Testing Features</h2>
+
+    <h3>Basic Enhancement</h3>
+    <p>Select any text above and click the enhancement button. The AI should improve clarity, fix grammar, and enhance professionalism.</p>
+
+    <h3>Mix It Up</h3>
+    <p>After enhancing text, click "Mix It Up" to regenerate with a different approach while maintaining the same quality standards.</p>
+
+    <h3>Add Some Flair</h3>
+    <p>Try adding custom instructions like:</p>
+    <ul>
+      <li>"Make it more formal"</li>
+      <li>"Add urgency"</li>
+      <li>"Make it shorter"</li>
+      <li>"Include a call to action"</li>
+      <li>"Add a warm greeting"</li>
+    </ul>
+
+    <h3>Copy & Close</h3>
+    <p>After enhancement, click "Copy & Close" to copy the enhanced text to your clipboard and close the modal.</p>
+  </div>
+
+  <div class="card">
+    <h2>Expected Results</h2>
+    <p>The AI should:</p>
+    <ul>
+      <li>Fix all grammar and spelling errors</li>
+      <li>Improve sentence structure and flow</li>
+      <li>Maintain the original meaning and key details</li>
+      <li>Use professional but friendly tone</li>
+      <li>Make the text more customer-focused</li>
+      <li>Preserve specific information (names, dates, prices, models)</li>
+      <li>Return concise, natural-sounding text</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Troubleshooting</h2>
+
+    <h3>Button Doesn't Appear</h3>
+    <ul>
+      <li>Make sure you've selected at least 10 characters</li>
+      <li>Check that the extension is loaded in <code>chrome://extensions/</code></li>
+      <li>Verify the content script is running (check browser console)</li>
+      <li>Ensure you've added test domain to manifest.json matches</li>
+    </ul>
+
+    <h3>API Errors</h3>
+    <ul>
+      <li>"API key not configured" - Go to extension settings and add your OpenAI API key</li>
+      <li>"Invalid API key" - Check that your key is correct and active</li>
+      <li>"Rate limit exceeded" - You've hit your OpenAI usage limit</li>
+      <li>"Request timeout" - Check your internet connection</li>
+    </ul>
+
+    <h3>Enhancement Quality Issues</h3>
+    <ul>
+      <li>Try "Mix It Up" to regenerate with different wording</li>
+      <li>Use "Add Some Flair" to give more specific instructions</li>
+      <li>Update your system prompt for better results</li>
+      <li>Ensure your prompt is clear about tone and style preferences</li>
+    </ul>
+  </div>
+
+</body>
+</html>

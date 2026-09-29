@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AAI CRM Extension - Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 32px 32px 40px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 32px;
+    }
+
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-icon {
+      width: 20px;
+      height: 20px;
+      color: #667eea;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #f9fafb;
+      border-color: #d1d5db;
+    }
+
+    .btn-secondary:active:not(:disabled) {
+      background: #f3f4f6;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: #0c4a6e;
+      line-height: 1.6;
+    }
+
+    .info-box a {
+      color: #0284c7;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .info-box a:hover {
+      text-decoration: underline;
+    }
+
+    .status-box {
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 12px;
+      display: none;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-box.success {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .status-box.error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .status-box.warning {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+
+    .prompt-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .prompt-info strong {
+      color: #374151;
+    }
+
+    .divider {
+      height: 1px;
+      background: #e5e7eb;
+      margin: 32px 0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #e5e7eb;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>AAI CRM Extension</h1>
+      <p>Configure your text enhancement settings</p>
+    </div>
+
+    <div class="content">
+      <!-- API Key Section -->
+      <div class="section">
+        <div class="section-title">
+          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+          OpenAI API Configuration
+        </div>
+
+        <div class="form-group">
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-...">
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" id="saveApiKey">Save API Key</button>
+          <button class="btn btn-secondary" id="testConnection">Test Connection</button>
+        </div>
+
+        <div id="apiStatus" class="status-box"></div>
+
+        <div class="info-box" style="margin-top: 16px;">
+          Don't have an API key? Get one from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>. Your key is stored locally and never shared.
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Enhancement Prompt Section -->
+      <div class="section">
+        <div class="section-title">
+          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          Enhancement Prompt Management
+        </div>
+
+        <div class="form-group">
+          <label for="enhanceUrl">Enhancement Prompt URL (GitHub Gist raw URL)</label>
+          <input type="text" id="enhanceUrl" placeholder="https://gist.githubusercontent.com/...">
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" id="saveEnhanceUrl">Save URL</button>
+          <button class="btn btn-secondary" id="refreshEnhancePrompt">Check for Updated Prompt</button>
+        </div>
+
+        <div id="enhanceStatus" class="status-box"></div>
+
+        <div id="enhanceInfo" class="prompt-info" style="margin-top: 16px;">
+          <span><strong>Last Updated:</strong> <span id="enhanceLastUpdated">Never</span></span>
+        </div>
+
+        <div class="info-box" style="margin-top: 16px;">
+          The enhancement prompt is automatically refreshed daily at 00:01. You can also manually refresh it using the button above.
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Response Prompt Section -->
+      <div class="section">
+        <div class="section-title">
+          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Response Prompt Management
+        </div>
+
+        <div class="form-group">
+          <label for="responseUrl">Response Prompt URL (GitHub Gist raw URL)</label>
+          <input type="text" id="responseUrl" placeholder="https://gist.githubusercontent.com/...">
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" id="saveResponseUrl">Save URL</button>
+          <button class="btn btn-secondary" id="refreshResponsePrompt">Check for Updated Prompt</button>
+        </div>
+
+        <div id="responseStatus" class="status-box"></div>
+
+        <div id="responseInfo" class="prompt-info" style="margin-top: 16px;">
+          <span><strong>Last Updated:</strong> <span id="responseLastUpdated">Never</span></span>
+        </div>
+
+        <div class="info-box" style="margin-top: 16px;">
+          The response prompt is automatically refreshed daily at 00:01. You can also manually refresh it using the button above.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
