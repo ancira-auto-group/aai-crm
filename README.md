@@ -303,6 +303,10 @@ This extension is provided as-is for use with VinSolutions CRM. Modify and distr
 
 ## Changelog
 
+### Version 2.1.1
+
+- Fixed the floating buttons reappearing behind the modal after clicking them, or when selecting text inside the modal
+
 ### Version 2.1.0
 
 - Switched to GPT-6 Luna (default) with GPT-6 Sol selectable in settings

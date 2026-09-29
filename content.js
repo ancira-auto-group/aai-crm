@@ -88,6 +88,12 @@ function init() {
  */
 function handleMouseUp(event) {
   clearTimeout(selectionTimeout);
+
+  // Clicks on our own buttons/modals aren't new selections on the page
+  if (event.target instanceof Element && event.target.closest('.aai-crm-floating-button, .aai-crm-modal')) {
+    return;
+  }
+
   selectionTimeout = setTimeout(() => {
     checkSelection(event);
   }, SELECTION_DEBOUNCE_MS);
@@ -150,6 +156,12 @@ function handleSelectionChange() {
  * Check if there's a valid text selection
  */
 function checkSelection(event) {
+  // Don't offer buttons while a modal is open
+  if (isModalOpen()) {
+    removeFloatingButton();
+    return;
+  }
+
   const { selection, doc, iframe } = getActiveSelection();
   const text = selection ? selection.toString().trim() : '';
 
@@ -159,6 +171,13 @@ function checkSelection(event) {
   } else {
     removeFloatingButton();
   }
+}
+
+/**
+ * Whether one of our modals (main or setup) is currently open
+ */
+function isModalOpen() {
+  return !!document.querySelector('.aai-crm-modal');
 }
 
 /**
@@ -310,6 +329,7 @@ function removeFloatingButton() {
  * Open the modal (enhance or response mode)
  */
 function openModal(mode = 'enhance') {
+  clearTimeout(selectionTimeout);
   removeFloatingButton();
   currentMode = mode;
 
