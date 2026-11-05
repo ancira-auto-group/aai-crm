@@ -25,7 +25,7 @@ Forgot your password? Ask your administrator to reset it.
 
 ## For administrators
 
-Open the admin page at `https://<server>/admin` and sign in with an admin account.
+Open the admin page at [aai-crm.ancira.app/admin](https://aai-crm.ancira.app/admin) and sign in with an admin account.
 
 | Tab | What it's for |
 |---|---|

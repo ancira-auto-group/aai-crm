@@ -33,7 +33,7 @@ Data lives in Neon Postgres (`db/schema.sql`).
    DATABASE_URL='postgresql://…' npm run create-admin -- you@ancira.com "Your Name"
    ```
 3. **Deploy to Vercel**: import the repository with **Root Directory** `server`, and set the environment variables above for Production.
-4. Open `https://<your-deployment>/admin`, sign in, add rooftops, then add users.
+4. Add the custom domain (production: `aai-crm.ancira.app`, managed in the Vercel team's DNS), then open `https://aai-crm.ancira.app/admin`, sign in, add rooftops, then add users.
 5. Put the deployment's URL in `extension/config.js` (`AAI_DEFAULT_SERVER_URL`) and release the extension.
 
 On first use, the Enhance and Reply prompts are imported from the GitHub Gists the 2.x extension used. If that import fails, built-in defaults are used. Either way, they can be edited or re-imported on the **Prompts** tab.
