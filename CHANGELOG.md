@@ -1,0 +1,55 @@
+# Changelog
+
+All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https://semver.org/):
+MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
+The extension and the server share one version number; see "Versioning" in the README.
+
+## [3.0.0] - Unreleased
+
+Requires the AAI for CRM server (in `server/`). Users sign in with an account instead of entering an OpenAI API key.
+
+- **Accounts**: users sign in with an email and password created by an admin; temporary passwords must be changed on first sign-in
+- **One server-side OpenAI key**: the key lives only on the server; the extension never sees it. Old API keys saved by 2.x are deleted from the browser on upgrade
+- **Rooftops and usage tracking**: every request is logged with its user and rooftop (requests, tokens, estimated cost), with reports and CSV export on the admin page
+- **Admin page** (`/admin`): manage rooftops and users (add, edit, disable, reset password, unlock), choose each user's AI model, edit the Enhance and Reply prompts
+- **Prompts moved to the server**: the GitHub Gist prompts are imported once and then edited on the admin page; the daily Gist refresh is gone
+- **Models**: GPT-6 Luna (default), GPT-6.1 Terra and GPT-6.1 Sol (replaces GPT-6 Sol), assigned per user by an admin
+- Settings page replaced with sign-in, account details, this month's usage and password change; the popup shows who is signed in and their rooftop
+- Server can require a minimum extension version (`MIN_EXTENSION_VERSION`) so outdated installs are asked to update
+- Fixed: the "Open Settings" button in the in-page setup prompt did nothing (content scripts can't open the options page directly)
+- Removed the `alarms` permission and the `api.openai.com` host permission
+- Repository reorganized: extension in `extension/`, server in `server/`
+
+## [2.2.0]
+
+- "Copy & Close" now inserts into the right place: replaces the selected text (Enhance) or inserts at the cursor of the last field you typed in (Reply), including in same-origin frames. It no longer pastes into the first text box on the page or wipes rich-text fields, and falls back to clipboard-only when there's no safe target
+- Version history in the modal (‹ 1 / 3 ›), with edits kept per version
+- Quick tweak chips: Shorter, More formal, Friendlier, Add call-to-action, Spanish
+- Character and SMS segment counter
+- Keyboard: Esc to close, Ctrl/⌘+Enter to insert, Enter to submit custom instructions, focus stays in the modal, screen-reader dialog labels
+- Labeled "Enhance" / "Reply" floating buttons
+- Keyboard shortcuts Alt+Shift+E / Alt+Shift+R
+- Popup shows this month's usage and your shortcuts (replaces the "Visit Test Page" button)
+
+## [2.1.1]
+
+- Fixed the floating buttons reappearing behind the modal after clicking them, or when selecting text inside the modal
+
+## [2.1.0]
+
+- Switched to GPT-6 Luna (default) with GPT-6 Sol selectable in settings
+- Fixed API parameters for GPT-6 (`max_completion_tokens`, `reasoning_effort: "none"`)
+- Streaming responses in the modal; closing the modal cancels the request
+- API key kept in session storage by default, with an opt-in "remember" setting
+- Monthly usage and estimated cost on the settings page
+- "Test Connection" now checks access to the selected model without spending tokens
+
+## [1.0.0] - 2024
+
+- Initial release
+- Text selection detection and floating button
+- OpenAI GPT-4o-mini integration
+- Modal UI with regeneration options
+- Settings page with API key management
+- Daily system prompt refresh
+- Comprehensive error handling

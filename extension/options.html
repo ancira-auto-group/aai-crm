@@ -308,165 +308,206 @@
         transform: rotate(360deg);
       }
     }
+  
+    input[type="email"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .account-grid {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 16px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .account-grid dt {
+      color: #6b7280;
+    }
+
+    .account-grid dd {
+      margin: 0;
+      font-weight: 500;
+      color: #111827;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    details[open] summary {
+      margin-bottom: 12px;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #9ca3af;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>AAI CRM Extension</h1>
-      <p>Configure your text enhancement settings</p>
+      <h1>AAI for CRM</h1>
+      <p>Your account and settings</p>
     </div>
 
     <div class="content">
-      <!-- API Key Section -->
-      <div class="section">
+      <div id="loading" class="section"><span class="spinner"></span>Loading…</div>
+
+      <!-- Signed out -->
+      <form id="signInSection" class="section" hidden>
         <div class="section-title">
           <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
           </svg>
-          OpenAI API Configuration
+          Sign in
         </div>
-
         <div class="form-group">
-          <label for="apiKey">API Key</label>
-          <input type="password" id="apiKey" placeholder="sk-...">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="username" required>
         </div>
-
         <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="rememberApiKey">
-            <span>Remember my API key after the browser closes. Leave unchecked on shared computers: the key is then kept in memory only and must be re-entered after restarting Chrome.</span>
-          </label>
+          <label for="password">Password</label>
+          <input type="password" id="password" autocomplete="current-password" required>
         </div>
-
         <div class="button-group">
-          <button class="btn btn-primary" id="saveApiKey">Save API Key</button>
-          <button class="btn btn-secondary" id="testConnection">Test Connection</button>
+          <button class="btn btn-primary" id="signInBtn" type="submit">Sign In</button>
         </div>
-
-        <div id="apiStatus" class="status-box"></div>
-
+        <div id="signInStatus" class="status-box"></div>
         <div class="info-box" style="margin-top: 16px;">
-          Don't have an API key? Get one from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>. Your key is only sent to OpenAI and is never readable by the CRM pages. Anyone with access to this Chrome profile can still use a remembered key, so use a <a href="https://platform.openai.com/settings/organization/limits" target="_blank">spend-limited project key</a>.
+          Your administrator creates your account and gives you a temporary password. Forgot your password? Ask your administrator to reset it.
         </div>
+      </form>
+
+      <!-- Signed in -->
+      <div id="accountSection" hidden>
+        <div id="mustChangeNotice" class="status-box warning" style="display: block; margin: 0 0 24px;" hidden>
+          You signed in with a temporary password. Choose a new one below to start using AAI for CRM.
+        </div>
+
+        <div class="section">
+          <div class="section-title">
+            <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            Account
+          </div>
+          <dl class="account-grid">
+            <dt>Name</dt><dd id="accountName"></dd>
+            <dt>Email</dt><dd id="accountEmail"></dd>
+            <dt>Rooftop</dt><dd id="accountRooftop"></dd>
+            <dt>AI model</dt><dd id="accountModel"></dd>
+          </dl>
+          <div class="button-group">
+            <button class="btn btn-secondary" id="signOutBtn">Sign Out</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section" id="usageSection">
+          <div class="section-title">
+            <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Your Usage This Month
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="stat-value" id="usageRequests">0</div><div class="stat-label">requests</div></div>
+            <div class="stat"><div class="stat-value" id="usageCost">$0.00</div><div class="stat-label">estimated cost</div></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <form class="section" id="passwordSection">
+          <div class="section-title">
+            <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            Change Password
+          </div>
+          <input type="text" id="usernameHint" autocomplete="username" hidden>
+          <div class="form-group">
+            <label for="currentPassword">Current password</label>
+            <input type="password" id="currentPassword" autocomplete="current-password" required>
+          </div>
+          <div class="form-group">
+            <label for="newPassword">New password (at least 10 characters)</label>
+            <input type="password" id="newPassword" autocomplete="new-password" minlength="10" required>
+          </div>
+          <div class="form-group">
+            <label for="confirmPassword">Confirm new password</label>
+            <input type="password" id="confirmPassword" autocomplete="new-password" required>
+          </div>
+          <div class="button-group">
+            <button class="btn btn-primary" id="changePasswordBtn" type="submit">Change Password</button>
+          </div>
+          <div id="passwordStatus" class="status-box"></div>
+        </form>
       </div>
 
       <div class="divider"></div>
 
-      <!-- Model Section -->
-      <div class="section">
-        <div class="section-title">
-          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2zm2 4h6v6H9V9z"/>
-          </svg>
-          AI Model
-        </div>
-
+      <details class="section" id="advancedSection">
+        <summary>Advanced</summary>
         <div class="form-group">
-          <label for="model">Model</label>
-          <select id="model"></select>
+          <label for="serverUrl">Server URL</label>
+          <input type="text" id="serverUrl" placeholder="https://…">
         </div>
-
-        <div id="modelStatus" class="status-box"></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- Usage Section -->
-      <div class="section">
-        <div class="section-title">
-          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-          </svg>
-          Usage &amp; Estimated Cost
-        </div>
-
-        <table class="usage-table">
-          <thead>
-            <tr><th>Month</th><th>Requests</th><th>Input tokens</th><th>Output tokens</th><th>Est. cost</th></tr>
-          </thead>
-          <tbody id="usageBody">
-            <tr><td colspan="5">No usage recorded yet</td></tr>
-          </tbody>
-        </table>
-
         <div class="button-group">
-          <button class="btn btn-secondary" id="resetUsage">Reset Usage</button>
+          <button class="btn btn-secondary" id="saveServerUrl">Save</button>
+          <button class="btn btn-secondary" id="resetServerUrl">Use Default</button>
         </div>
-
+        <div id="serverStatus" class="status-box"></div>
         <div class="info-box" style="margin-top: 16px;">
-          Usage is tracked on this browser only. Costs are estimates from list prices; check your <a href="https://platform.openai.com/usage" target="_blank">OpenAI usage dashboard</a> for billed amounts.
+          Only change this if your administrator asks you to. Changing it signs you out.
         </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- Enhancement Prompt Section -->
-      <div class="section">
-        <div class="section-title">
-          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-          Enhancement Prompt Management
-        </div>
-
-        <div class="form-group">
-          <label for="enhanceUrl">Enhancement Prompt URL (GitHub Gist raw URL)</label>
-          <input type="text" id="enhanceUrl" placeholder="https://gist.githubusercontent.com/...">
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-primary" id="saveEnhanceUrl">Save URL</button>
-          <button class="btn btn-secondary" id="refreshEnhancePrompt">Check for Updated Prompt</button>
-        </div>
-
-        <div id="enhanceStatus" class="status-box"></div>
-
-        <div id="enhanceInfo" class="prompt-info" style="margin-top: 16px;">
-          <span><strong>Last Updated:</strong> <span id="enhanceLastUpdated">Never</span></span>
-        </div>
-
-        <div class="info-box" style="margin-top: 16px;">
-          The enhancement prompt is automatically refreshed daily at 00:01. You can also manually refresh it using the button above.
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- Response Prompt Section -->
-      <div class="section">
-        <div class="section-title">
-          <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-          Response Prompt Management
-        </div>
-
-        <div class="form-group">
-          <label for="responseUrl">Response Prompt URL (GitHub Gist raw URL)</label>
-          <input type="text" id="responseUrl" placeholder="https://gist.githubusercontent.com/...">
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-primary" id="saveResponseUrl">Save URL</button>
-          <button class="btn btn-secondary" id="refreshResponsePrompt">Check for Updated Prompt</button>
-        </div>
-
-        <div id="responseStatus" class="status-box"></div>
-
-        <div id="responseInfo" class="prompt-info" style="margin-top: 16px;">
-          <span><strong>Last Updated:</strong> <span id="responseLastUpdated">Never</span></span>
-        </div>
-
-        <div class="info-box" style="margin-top: 16px;">
-          The response prompt is automatically refreshed daily at 00:01. You can also manually refresh it using the button above.
-        </div>
-      </div>
+      </details>
     </div>
+
+    <div class="footer" id="versionText"></div>
   </div>
 
-  <script src="models.js"></script>
+  <script src="config.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

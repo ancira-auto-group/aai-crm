@@ -3,3 +3,9 @@ node_modules/
 *.zip
 *.crx
 *.pem
+
+# Server
+server/.next/
+server/.vercel/
+.env*
+!.env.example

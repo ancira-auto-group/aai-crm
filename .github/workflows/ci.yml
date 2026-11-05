@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Version numbers match
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            node scripts/check-version.mjs --tag "$GITHUB_REF_NAME"
+          else
+            node scripts/check-version.mjs
+          fi
+
+      - name: Extension scripts parse
+        run: |
+          node -e 'JSON.parse(require("fs").readFileSync("extension/manifest.json"))'
+          for f in extension/*.js; do node --check "$f"; done
+
+      - name: Server builds
+        working-directory: server
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package extension
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd extension
+          zip -r "../aai-crm-extension-${GITHUB_REF_NAME}.zip" . -x 'test-page.html'
+
+      - name: Upload extension package
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: aai-crm-extension-${{ github.ref_name }}
+          path: aai-crm-extension-${{ github.ref_name }}.zip

@@ -1,0 +1,26 @@
+{
+  "name": "aai-crm-server",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Accounts, usage tracking and OpenAI relay for the AAI for CRM Chrome extension",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "migrate": "node scripts/migrate.mjs",
+    "create-admin": "node scripts/create-admin.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "pg": "^8.23.1"
+  }
+}
