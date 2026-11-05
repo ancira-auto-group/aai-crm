@@ -1,14 +1,10 @@
 {
   "manifest_version": 3,
   "name": "AAI for CRM - Text Enhancement",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "Enhance text on VinSolutions CRM pages using AI-powered suggestions",
   "permissions": [
-    "storage",
-    "alarms"
-  ],
-  "host_permissions": [
-    "https://api.openai.com/*"
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"

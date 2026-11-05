@@ -122,9 +122,9 @@ function init() {
  * Load the user's keyboard shortcuts, shown in button tooltips
  */
 function loadShortcuts() {
-  chrome.runtime.sendMessage({ action: 'getStatus' }, (status) => {
-    if (!chrome.runtime.lastError && status?.shortcuts) {
-      shortcuts = status.shortcuts;
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+    if (!chrome.runtime.lastError && response?.data?.shortcuts) {
+      shortcuts = response.data.shortcuts;
     }
   });
 }
@@ -515,10 +515,11 @@ function openModal(mode = 'enhance') {
   removeFloatingButton();
   currentMode = mode;
 
-  // Check if API key is configured (the key itself stays in the background worker)
-  chrome.runtime.sendMessage({ action: 'getStatus' }, (status) => {
-    if (chrome.runtime.lastError || !status?.hasApiKey) {
-      showSetupPrompt();
+  // Check that someone is signed in (the session token stays in the background worker)
+  chrome.runtime.sendMessage({ action: 'getStatus' }, (response) => {
+    const status = response?.data;
+    if (chrome.runtime.lastError || !status?.signedIn || status.mustChangePassword) {
+      showSetupPrompt(status?.signedIn);
       return;
     }
     if (status.shortcuts) {
@@ -529,20 +530,23 @@ function openModal(mode = 'enhance') {
 }
 
 /**
- * Show setup prompt when API key is missing
+ * Ask the user to sign in (or finish setting their password) in the extension settings
  */
-function showSetupPrompt() {
+function showSetupPrompt(signedIn = false) {
+  const message = signedIn
+    ? 'Please choose a new password in the extension settings before using AAI for CRM.'
+    : 'Sign in with the account your administrator gave you to start using AAI for CRM.';
   const setupModal = document.createElement('div');
   setupModal.className = 'aai-crm-modal';
   setupModal.innerHTML = `
     <div class="aai-crm-modal-content aai-crm-setup" role="dialog" aria-modal="true" aria-labelledby="aai-crm-setup-title" tabindex="-1">
       <div class="aai-crm-modal-header">
-        <h2 id="aai-crm-setup-title">Setup Required</h2>
+        <h2 id="aai-crm-setup-title">${signedIn ? 'Finish setting up' : 'Sign in required'}</h2>
         <button class="aai-crm-close-btn" aria-label="Close">&times;</button>
       </div>
       <div class="aai-crm-modal-body">
-        <p>Please configure your OpenAI API key in the extension settings to use text enhancement. If you chose not to remember the key, it needs to be re-entered after restarting the browser.</p>
-        <button class="aai-crm-primary-btn" id="aai-crm-open-settings">Open Settings</button>
+        <p>${message}</p>
+        <button class="aai-crm-primary-btn" id="aai-crm-open-settings">${signedIn ? 'Open Settings' : 'Sign In'}</button>
       </div>
     </div>
   `;
@@ -552,7 +556,8 @@ function showSetupPrompt() {
   const close = () => setupModal.remove();
   setupModal.querySelector('.aai-crm-close-btn').addEventListener('click', close);
   setupModal.querySelector('#aai-crm-open-settings').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+    // openOptionsPage isn't available to content scripts, so ask the background worker
+    chrome.runtime.sendMessage({ action: 'openOptions' });
     close();
   });
   setupModal.addEventListener('click', (e) => {
@@ -787,7 +792,7 @@ function updateCounter() {
 }
 
 /**
- * Generate enhanced text or suggested response using OpenAI API.
+ * Generate enhanced text or a suggested response through the AAI server.
  * Text is streamed into the textarea as it arrives; each finished result becomes a new version.
  * @param {string} additionalContext - Extra instructions for the model
  * @param {string} label - Short name for the version (e.g. "Shorter")
@@ -809,7 +814,7 @@ function generateEnhancedText(additionalContext = '', label = '') {
   setResultControlsVisible(false);
   updateCounter();
 
-  // Detect and redact PII before sending to OpenAI
+  // Detect and redact PII before it leaves the browser
   const { redactedText, hasPII, piiTypes } = detectAndRedactPII(currentSelection);
 
   // Show PII warning if detected (once per modal)
@@ -817,7 +822,7 @@ function generateEnhancedText(additionalContext = '', label = '') {
     const originalLabel = modal.querySelector('.aai-crm-section label');
     const piiWarning = document.createElement('div');
     piiWarning.className = 'aai-crm-pii-warning';
-    piiWarning.textContent = `⚠️ PII detected and redacted (${piiTypes.join(', ')}) before sending to OpenAI`;
+    piiWarning.textContent = `⚠️ PII detected and redacted (${piiTypes.join(', ')}) before sending to the AI`;
     originalLabel.parentNode.insertBefore(piiWarning, originalLabel.nextSibling);
   }
 
