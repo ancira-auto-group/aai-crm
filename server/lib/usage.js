@@ -39,22 +39,51 @@ export async function usageReport({ from, to }) {
     FROM usage_events
     WHERE (created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date`;
 
+  // Requests from users with several rooftops are split evenly (usage_event_rooftops.share),
+  // so these counts can be fractional and the rooftop rows add up to the overall totals.
   const byRooftop = await sql`
-    SELECT e.rooftop_id, coalesce(r.name, 'Unassigned') AS rooftop,
-           count(*) FILTER (WHERE e.status = 'ok')::int AS requests,
-           count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'enhance')::int AS enhance,
-           count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'response')::int AS response,
-           coalesce(sum(e.input_tokens + e.output_tokens), 0)::bigint AS tokens,
-           coalesce(sum(e.cost_usd), 0)::float AS cost_usd,
-           count(DISTINCT e.user_id)::int AS active_users
-    FROM usage_events e LEFT JOIN rooftops r ON r.id = e.rooftop_id
-    WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
-    GROUP BY e.rooftop_id, r.name
-    ORDER BY requests DESC`;
+    SELECT * FROM (
+      SELECT r.id AS rooftop_id, r.name AS rooftop,
+             coalesce(sum(s.share) FILTER (WHERE e.status = 'ok'), 0)::float AS requests,
+             coalesce(sum(s.share) FILTER (WHERE e.status = 'ok' AND e.mode = 'enhance'), 0)::float AS enhance,
+             coalesce(sum(s.share) FILTER (WHERE e.status = 'ok' AND e.mode = 'response'), 0)::float AS response,
+             coalesce(sum((e.input_tokens + e.output_tokens) * s.share), 0)::float AS tokens,
+             coalesce(sum(e.cost_usd * s.share), 0)::float AS cost_usd,
+             count(DISTINCT e.user_id)::int AS active_users
+      FROM usage_event_rooftops s
+      JOIN usage_events e ON e.id = s.event_id
+      JOIN rooftops r ON r.id = s.rooftop_id
+      WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
+      GROUP BY r.id, r.name
 
+      UNION ALL
+
+      -- Requests from users with no active rooftop (e.g. admins)
+      SELECT NULL, 'Unassigned',
+             count(*) FILTER (WHERE e.status = 'ok')::float,
+             count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'enhance')::float,
+             count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'response')::float,
+             coalesce(sum(e.input_tokens + e.output_tokens), 0)::float,
+             coalesce(sum(e.cost_usd), 0)::float,
+             count(DISTINCT e.user_id)::int
+      FROM usage_events e
+      WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
+        AND NOT EXISTS (SELECT 1 FROM usage_event_rooftops s WHERE s.event_id = e.id)
+      HAVING count(*) > 0
+    ) rows
+    ORDER BY requests DESC, rooftop`;
+
+  // One row per user with their full totals; rooftops lists every rooftop their requests counted toward
   const byUser = await sql`
     SELECT e.user_id, coalesce(u.name, '') AS name, coalesce(u.email, '(deleted user)') AS email,
-           coalesce(r.name, 'Unassigned') AS rooftop,
+           coalesce((
+             SELECT array_agg(DISTINCT r.name ORDER BY r.name)
+             FROM usage_events e2
+             JOIN usage_event_rooftops s ON s.event_id = e2.id
+             JOIN rooftops r ON r.id = s.rooftop_id
+             WHERE e2.user_id IS NOT DISTINCT FROM e.user_id
+               AND (e2.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
+           ), ARRAY[]::text[]) AS rooftops,
            count(*) FILTER (WHERE e.status = 'ok')::int AS requests,
            count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'enhance')::int AS enhance,
            count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'response')::int AS response,
@@ -63,9 +92,8 @@ export async function usageReport({ from, to }) {
            max(e.created_at) AS last_used
     FROM usage_events e
     LEFT JOIN users u ON u.id = e.user_id
-    LEFT JOIN rooftops r ON r.id = e.rooftop_id
     WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
-    GROUP BY e.user_id, u.name, u.email, e.rooftop_id, r.name
+    GROUP BY e.user_id, u.name, u.email
     ORDER BY requests DESC`;
 
   const byDay = await sql`
@@ -80,7 +108,6 @@ export async function usageReport({ from, to }) {
   const num = (rows, key) => rows.forEach((row) => { row[key] = Number(row[key]); });
   num([totals], 'input_tokens');
   num([totals], 'output_tokens');
-  num(byRooftop, 'tokens');
   num(byUser, 'tokens');
 
   return { from, to, timezone: tz, totals, byRooftop, byUser, byDay };

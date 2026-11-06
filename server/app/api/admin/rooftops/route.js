@@ -12,7 +12,9 @@ export const GET = route(async (request) => {
     SELECT r.id, r.name, r.active, r.created_at,
            count(u.id) FILTER (WHERE u.active)::int AS active_users,
            count(u.id)::int AS total_users
-    FROM rooftops r LEFT JOIN users u ON u.rooftop_id = r.id
+    FROM rooftops r
+    LEFT JOIN user_rooftops ur ON ur.rooftop_id = r.id
+    LEFT JOIN users u ON u.id = ur.user_id
     GROUP BY r.id ORDER BY r.name`;
   return json({ rooftops });
 });

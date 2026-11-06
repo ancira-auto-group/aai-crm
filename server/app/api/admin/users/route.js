@@ -2,25 +2,31 @@ import { generateTempPassword, hashPassword, requireUser } from '../../../../lib
 import { sql } from '../../../../lib/db.js';
 import { HttpError, json, readJson, route, str } from '../../../../lib/http.js';
 import { modelList } from '../../../../lib/models.js';
+import { setUserRooftops } from '../../../../lib/rooftops.js';
 import { checkUserFields } from './validate.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/admin/users - all users, plus the model list for the edit form */
+/** GET /api/admin/users - all users with their rooftops, plus the model list for the edit form */
 export const GET = route(async (request) => {
   await requireUser(request, { admin: true });
   const users = await sql`
-    SELECT u.id, u.email, u.name, u.role, u.rooftop_id, r.name AS rooftop_name, u.model, u.active,
+    SELECT u.id, u.email, u.name, u.role, u.model, u.active,
            u.must_change_password, u.created_at, u.last_active_at,
-           (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked
-    FROM users u LEFT JOIN rooftops r ON r.id = u.rooftop_id
-    ORDER BY u.active DESC, r.name NULLS FIRST, u.name, u.email`;
+           (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked,
+           coalesce((
+             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active) ORDER BY r.name)
+             FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
+             WHERE ur.user_id = u.id
+           ), '[]'::json) AS rooftops
+    FROM users u
+    ORDER BY u.active DESC, lower(coalesce(nullif(u.name, ''), u.email))`;
   return json({ users, models: modelList() });
 });
 
 /**
- * POST /api/admin/users { email, name, role, rooftopId, model }
+ * POST /api/admin/users { email, name, role, rooftopIds, model }
  * Returns a temporary password to hand to the user; they must change it on first sign-in.
  */
 export const POST = route(async (request) => {
@@ -32,17 +38,18 @@ export const POST = route(async (request) => {
     throw new HttpError(400, 'Enter a valid email address');
   }
   const name = str(body.name, { field: 'Name', max: 100 });
-  const { role, rooftopId, model } = await checkUserFields(body);
+  const { role, rooftopIds, model } = await checkUserFields(body);
 
   const tempPassword = generateTempPassword();
   const [user] = await sql`
-    INSERT INTO users (email, name, role, rooftop_id, model, password_hash, must_change_password)
-    VALUES (${email}, ${name}, ${role}, ${rooftopId}, ${model}, ${await hashPassword(tempPassword)}, true)
+    INSERT INTO users (email, name, role, model, password_hash, must_change_password)
+    VALUES (${email}, ${name}, ${role}, ${model}, ${await hashPassword(tempPassword)}, true)
     ON CONFLICT (email) DO NOTHING
     RETURNING id, email`;
   if (!user) {
     throw new HttpError(409, `A user with email ${email} already exists`);
   }
+  await setUserRooftops(user.id, rooftopIds ?? []);
 
   return json({ user, tempPassword }, { status: 201 });
 });

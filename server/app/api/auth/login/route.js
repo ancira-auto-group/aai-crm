@@ -1,6 +1,6 @@
 import { checkCredentials, createSession, publicUser, SESSION_COOKIE } from '../../../../lib/auth.js';
-import { sql } from '../../../../lib/db.js';
 import { json, readJson, route, str } from '../../../../lib/http.js';
+import { getUserRooftops } from '../../../../lib/rooftops.js';
 import { checkExtensionVersion } from '../../../../lib/version.js';
 
 export const runtime = 'nodejs';
@@ -19,9 +19,7 @@ export const POST = route(async (request) => {
   const user = await checkCredentials(email, password);
   const { token, maxAgeSeconds } = await createSession(user.id, client);
 
-  const [full] = await sql`
-    SELECT u.*, r.name AS rooftop_name FROM users u LEFT JOIN rooftops r ON r.id = u.rooftop_id
-    WHERE u.id = ${user.id}`;
+  const full = { ...user, rooftops: await getUserRooftops(user.id) };
 
   if (client === 'web') {
     const response = json({ user: publicUser(full) });

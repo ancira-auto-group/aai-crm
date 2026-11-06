@@ -82,6 +82,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
 .btn.danger { color: var(--danger); }
 .btn.small { padding: 4px 10px; font-size: 12px; }
+.checks { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 10px; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.checks legend { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; color: var(--text); cursor: pointer; }
+label.check input { width: auto; margin: 0; }
 .link { background: none; border: none; color: var(--accent); font: inherit; cursor: pointer; padding: 0; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }

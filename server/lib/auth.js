@@ -98,11 +98,14 @@ export async function requireUser(request, { admin = false, allowPasswordChange 
   }
 
   const [user] = await sql`
-    SELECT u.id, u.email, u.name, u.role, u.rooftop_id, u.model, u.active, u.must_change_password,
-           r.name AS rooftop_name, r.active AS rooftop_active
+    SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.must_change_password,
+           coalesce((
+             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active) ORDER BY r.name)
+             FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
+             WHERE ur.user_id = u.id
+           ), '[]'::json) AS rooftops
     FROM sessions s
     JOIN users u ON u.id = s.user_id
-    LEFT JOIN rooftops r ON r.id = u.rooftop_id
     WHERE s.token_hash = ${hashToken(token)} AND s.expires_at > now()`;
 
   if (!user) {
@@ -111,7 +114,8 @@ export async function requireUser(request, { admin = false, allowPasswordChange 
   if (!user.active) {
     throw new HttpError(403, 'This account has been disabled. Contact your administrator.', 'disabled');
   }
-  if (user.role !== 'admin' && user.rooftop_active === false) {
+  // Users keep access while at least one of their rooftops is active
+  if (user.role !== 'admin' && user.rooftops.length > 0 && !user.rooftops.some((r) => r.active)) {
     throw new HttpError(403, 'Your rooftop has been disabled. Contact your administrator.', 'disabled');
   }
   if (user.must_change_password && !allowPasswordChange) {
@@ -124,13 +128,19 @@ export async function requireUser(request, { admin = false, allowPasswordChange 
   return { ...user, token };
 }
 
+/**
+ * The user as the extension and admin page see them. user.rooftops comes from requireUser or getUserRooftops.
+ * `rooftop` (one object, names joined) is kept for 3.0.0 extensions, which show a single rooftop.
+ */
 export function publicUser(user) {
+  const rooftops = (user.rooftops || []).map(({ id, name, active }) => ({ id, name, active }));
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
-    rooftop: user.rooftop_id ? { id: user.rooftop_id, name: user.rooftop_name } : null,
+    rooftops,
+    rooftop: rooftops.length ? { id: rooftops[0].id, name: rooftops.map((r) => r.name).join(', ') } : null,
     mustChangePassword: user.must_change_password
   };
 }

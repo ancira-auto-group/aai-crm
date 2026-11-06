@@ -4,7 +4,7 @@ Next.js app that provides:
 
 - **Accounts**: email/password sign-in for the extension (bearer tokens) and the admin page (httpOnly cookie)
 - **OpenAI relay**: `POST /api/generate` streams results using the one server-side OpenAI key, with each user's assigned model
-- **Usage tracking**: one `usage_events` row per request, tagged with the user and their rooftop at that time
+- **Usage tracking**: one `usage_events` row per request, tagged with the user, and split evenly across the user's active rooftops at that time (`usage_event_rooftops`)
 - **Admin page** at `/admin`: usage reports, users, rooftops, prompts
 
 Data lives in Neon Postgres (`db/schema.sql`).
@@ -62,11 +62,11 @@ All responses are JSON unless noted. Errors look like `{ "error": "message", "co
 | `POST /api/auth/login` | anyone | `{ email, password, client: 'extension' \| 'web' }` → `{ token, user }` (extension) or a session cookie (web) |
 | `POST /api/auth/logout` | signed in | Ends the current session |
 | `POST /api/auth/password` | signed in | `{ currentPassword, newPassword }`; signs out other sessions |
-| `GET /api/me` | signed in | User, rooftop, model, and this month's usage |
+| `GET /api/me` | signed in | User (with `rooftops`), model, and this month's usage |
 | `POST /api/generate` | signed in | `{ mode: 'enhance' \| 'response', text, additionalContext? }` → server-sent events: `delta`, `done` or `error` |
 | `GET /api/admin/usage?from&to` | admin | Totals plus breakdowns by rooftop, user and day |
-| `GET, POST /api/admin/users` | admin | List, or create (returns a temporary password) |
-| `PATCH /api/admin/users/:id` | admin | `{ name, role, rooftopId, model, active, unlock }` |
+| `GET, POST /api/admin/users` | admin | List, or create `{ email, name, role, rooftopIds, model }` (returns a temporary password) |
+| `PATCH /api/admin/users/:id` | admin | `{ name, role, rooftopIds, model, active, unlock }`; leaving out `rooftopIds` keeps the current rooftops |
 | `POST /api/admin/users/:id/reset-password` | admin | New temporary password; signs the user out everywhere |
 | `GET, POST /api/admin/rooftops` | admin | List, or create `{ name }` |
 | `PATCH /api/admin/rooftops/:id` | admin | `{ name, active }` |

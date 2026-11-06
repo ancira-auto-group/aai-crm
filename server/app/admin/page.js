@@ -22,7 +22,8 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 const money = (n) => `$${Number(n || 0).toFixed(n > 0 && n < 1 ? 4 : 2)}`;
-const count = (n) => Number(n || 0).toLocaleString();
+const count = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
+const rooftopList = (names) => (names && names.length ? names.join(', ') : 'Unassigned');
 const when = (d) => (d ? new Date(d).toLocaleString() : 'Never');
 
 function localDay(date = new Date()) {
@@ -181,7 +182,10 @@ function UsageTab() {
     if (!report) {
       return [];
     }
-    return rooftopFilter === null ? report.byUser : report.byUser.filter((u) => u.rooftop === rooftopFilter);
+    if (rooftopFilter === null) {
+      return report.byUser;
+    }
+    return report.byUser.filter((u) => (rooftopFilter === 'Unassigned' ? u.rooftops.length === 0 : u.rooftops.includes(rooftopFilter)));
   }, [report, rooftopFilter]);
 
   const maxDay = Math.max(1, ...(report?.byDay || []).map((d) => d.requests));
@@ -196,7 +200,7 @@ function UsageTab() {
           <button className="btn" onClick={() => setRange(presetRange('last-month'))}>Last month</button>
           <button className="btn" onClick={() => setRange(presetRange('last-30'))}>Last 30 days</button>
         </div>
-        {report && <p className="muted" style={{ margin: '10px 0 0' }}>Dates are in {report.timezone}. Costs are estimates from list prices.</p>}
+        {report && <p className="muted" style={{ margin: '10px 0 0' }}>Dates are in {report.timezone}. Costs are estimates from list prices. Requests from people assigned to several rooftops are split evenly among those rooftops.</p>}
       </div>
 
       {error && <div className="notice error">{error}</div>}
@@ -262,7 +266,7 @@ function UsageTab() {
               <button className="btn small" onClick={() => downloadCsv(`usage-by-user_${report.from}_${report.to}.csv`, users, [
                 { label: 'Name', value: (u) => u.name },
                 { label: 'Email', value: (u) => u.email },
-                { label: 'Rooftop', value: (u) => u.rooftop },
+                { label: 'Rooftops', value: (u) => rooftopList(u.rooftops) },
                 { label: 'Requests', value: (u) => u.requests },
                 { label: 'Enhance', value: (u) => u.enhance },
                 { label: 'Reply', value: (u) => u.response },
@@ -273,13 +277,13 @@ function UsageTab() {
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>User</th><th>Rooftop</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Est. cost</th><th className="hide-sm">Last used</th></tr></thead>
+                <thead><tr><th>User</th><th>Rooftops</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Est. cost</th><th className="hide-sm">Last used</th></tr></thead>
                 <tbody>
                   {users.length === 0 && <tr><td colSpan={7} className="muted">No usage in this period</td></tr>}
                   {users.map((u) => (
-                    <tr key={`${u.user_id}-${u.rooftop}`}>
+                    <tr key={u.user_id ?? 'deleted'}>
                       <td>{u.name || u.email}{u.name && <div className="muted" style={{ fontSize: 12 }}>{u.email}</div>}</td>
-                      <td>{u.rooftop}</td><td className="num">{count(u.requests)}</td><td className="num hide-sm">{count(u.enhance)}</td>
+                      <td>{rooftopList(u.rooftops)}</td><td className="num">{count(u.requests)}</td><td className="num hide-sm">{count(u.enhance)}</td>
                       <td className="num hide-sm">{count(u.response)}</td><td className="num">{money(u.cost_usd)}</td>
                       <td className="hide-sm">{when(u.last_used)}</td>
                     </tr>
@@ -296,15 +300,27 @@ function UsageTab() {
 
 /* ---------- users ---------- */
 
-const EMPTY_USER = { email: '', name: '', role: 'user', rooftopId: '', model: '' };
+const EMPTY_USER = { email: '', name: '', role: 'user', rooftopIds: [], model: '' };
 
 function UserForm({ initial, rooftops, models, onSubmit, onCancel, submitLabel, emailEditable }) {
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState('');
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  const toggleRooftop = (id) => setForm({
+    ...form,
+    rooftopIds: form.rooftopIds.includes(id) ? form.rooftopIds.filter((r) => r !== id) : [...form.rooftopIds, id]
+  });
+  // Disabled rooftops are only listed when already assigned, so they can be removed
+  const choices = rooftops.filter((r) => r.active || form.rooftopIds.includes(r.id));
 
   const submit = async (e) => {
     e.preventDefault();
+    if (form.role === 'user' && form.rooftopIds.length === 0) {
+      setFormError('Choose at least one rooftop');
+      return;
+    }
+    setFormError('');
     setBusy(true);
     try {
       await onSubmit(form);
@@ -318,12 +334,6 @@ function UserForm({ initial, rooftops, models, onSubmit, onCancel, submitLabel, 
       <div className="row">
         {emailEditable && <label>Email<input type="email" value={form.email} onChange={set('email')} required /></label>}
         <label>Name<input value={form.name} onChange={set('name')} /></label>
-        <label>Rooftop
-          <select value={form.rooftopId} onChange={set('rooftopId')} required={form.role === 'user'}>
-            <option value="">{form.role === 'admin' ? 'None' : 'Choose…'}</option>
-            {rooftops.filter((r) => r.active || String(r.id) === String(form.rooftopId)).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-        </label>
         <label>Role
           <select value={form.role} onChange={set('role')}>
             <option value="user">User</option>
@@ -337,6 +347,17 @@ function UserForm({ initial, rooftops, models, onSubmit, onCancel, submitLabel, 
           </select>
         </label>
       </div>
+      <fieldset className="checks">
+        <legend>Rooftops{form.role === 'admin' ? ' (optional for admins)' : ''}</legend>
+        {choices.length === 0 && <span className="muted">No rooftops yet. Add one on the Rooftops tab.</span>}
+        {choices.map((r) => (
+          <label key={r.id} className="check">
+            <input type="checkbox" checked={form.rooftopIds.includes(r.id)} onChange={() => toggleRooftop(r.id)} />
+            {r.name}{!r.active && <span className="badge">Disabled</span>}
+          </label>
+        ))}
+      </fieldset>
+      {formError && <div className="notice error" role="alert" style={{ marginTop: 10 }}>{formError}</div>}
       <div className="row" style={{ marginTop: 12 }}>
         <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : submitLabel}</button>
         {onCancel && <button type="button" className="btn" onClick={onCancel}>Cancel</button>}
@@ -403,7 +424,7 @@ function UsersTab({ me }) {
   const modelLabel = (id) => models.find((m) => m.id === id)?.label.split(' (')[0] || 'Default';
   const shown = (users || []).filter((u) => {
     const q = filter.trim().toLowerCase();
-    return !q || [u.email, u.name, u.rooftop_name].some((v) => (v || '').toLowerCase().includes(q));
+    return !q || [u.email, u.name, ...u.rooftops.map((r) => r.name)].some((v) => (v || '').toLowerCase().includes(q));
   });
 
   return (
@@ -411,7 +432,7 @@ function UsersTab({ me }) {
       <Notice notice={notice} onClose={() => setNotice(null)} />
 
       {rooftops.length === 0 && users && (
-        <div className="notice warn">Add a rooftop first (Rooftops tab). Every regular user belongs to one.</div>
+        <div className="notice warn">Add a rooftop first (Rooftops tab). Every regular user belongs to at least one.</div>
       )}
 
       <div className="card">
@@ -432,13 +453,13 @@ function UsersTab({ me }) {
         {!users ? <p className="muted">Loading…</p> : (
           <div className="table-wrap" style={{ marginTop: 12 }}>
             <table>
-              <thead><tr><th>User</th><th>Rooftop</th><th className="hide-sm">Model</th><th className="hide-sm">Last active</th><th /></tr></thead>
+              <thead><tr><th>User</th><th>Rooftops</th><th className="hide-sm">Model</th><th className="hide-sm">Last active</th><th /></tr></thead>
               <tbody>
                 {shown.map((u) => editing === u.id ? (
                   <tr key={u.id}><td colSpan={5}>
                     <div className="muted" style={{ marginBottom: 8 }}>{u.email}</div>
                     <UserForm
-                      initial={{ name: u.name, role: u.role, rooftopId: u.rooftop_id ?? '', model: u.model ?? '' }}
+                      initial={{ name: u.name, role: u.role, rooftopIds: u.rooftops.map((r) => r.id), model: u.model ?? '' }}
                       rooftops={rooftops} models={models} submitLabel="Save"
                       onSubmit={(form) => update(u.id, form)} onCancel={() => setEditing(null)} />
                   </td></tr>
@@ -452,7 +473,12 @@ function UsersTab({ me }) {
                       {u.must_change_password && u.active && <span className="badge warn">Temp password</span>}
                       {u.name && <div className="muted" style={{ fontSize: 12 }}>{u.email}</div>}
                     </td>
-                    <td>{u.rooftop_name || <span className="muted">None</span>}</td>
+                    <td>
+                      {u.rooftops.length === 0 && <span className="muted">None</span>}
+                      {u.rooftops.map((r, i) => (
+                        <span key={r.id} className={r.active ? '' : 'muted'}>{i > 0 && ', '}{r.name}{!r.active && ' (disabled)'}</span>
+                      ))}
+                    </td>
                     <td className="hide-sm">{modelLabel(u.model)}</td>
                     <td className="hide-sm">{when(u.last_active_at)}</td>
                     <td>
