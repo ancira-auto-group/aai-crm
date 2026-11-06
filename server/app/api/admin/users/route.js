@@ -16,7 +16,7 @@ export const GET = route(async (request) => {
            u.must_change_password, u.created_at, u.last_active_at,
            (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked,
            coalesce((
-             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active) ORDER BY r.name)
+             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active, 'crmName', r.crm_name) ORDER BY r.name)
              FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
              WHERE ur.user_id = u.id
            ), '[]'::json) AS rooftops

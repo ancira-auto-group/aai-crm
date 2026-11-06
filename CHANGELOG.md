@@ -4,7 +4,13 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.0.0] - Unreleased
+## [3.1.0] - Unreleased
+
+- **Store picker for people at several rooftops**: the Enhance/Reply window shows a Store dropdown, preselected from the dealership VinSolutions shows in its header (else the last store used, else "Not sure"). The AI uses that store's name, address and phone, and the request counts 100% toward that store in usage reports. People at a single rooftop see no change
+- Admin page: each rooftop has a **VinSolutions name** (the dealership name exactly as VinSolutions shows it) used to recognize the store
+- The extension refreshes the user's rooftops every 10 minutes, so admin changes reach the store picker without signing out
+
+## [3.0.0] - 2026-11-06
 
 Requires the AAI for CRM server (in `server/`). Users sign in with an account instead of entering an OpenAI API key.
 

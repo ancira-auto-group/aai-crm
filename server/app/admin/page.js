@@ -508,7 +508,8 @@ function UsersTab({ me }) {
 function RooftopsTab() {
   const [rooftops, setRooftops] = useState(null);
   const [name, setName] = useState('');
-  const [renaming, setRenaming] = useState(null);
+  const [crmName, setCrmName] = useState('');
+  const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState(null);
 
   const load = useCallback(() => api('/api/admin/rooftops')
@@ -529,9 +530,18 @@ function RooftopsTab() {
   const add = (e) => {
     e.preventDefault();
     act(async () => {
-      await api('/api/admin/rooftops', { method: 'POST', body: { name } });
+      await api('/api/admin/rooftops', { method: 'POST', body: { name, crmName } });
       setNotice({ type: 'success', text: `Added ${name}` });
       setName('');
+      setCrmName('');
+    });
+  };
+
+  const save = (e) => {
+    e.preventDefault();
+    act(async () => {
+      await api(`/api/admin/rooftops/${editing.id}`, { method: 'PATCH', body: { name: editing.name, crmName: editing.crmName } });
+      setEditing(null);
     });
   };
 
@@ -541,37 +551,46 @@ function RooftopsTab() {
       <form className="card" onSubmit={add}>
         <h2>Add a rooftop</h2>
         <div className="row">
-          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ancira Chevrolet" required /></label>
+          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. AWC" required /></label>
+          <label>VinSolutions name<input value={crmName} onChange={(e) => setCrmName(e.target.value)} placeholder="e.g. Ancira-Winton Chevrolet" /></label>
           <button className="btn primary">Add</button>
         </div>
       </form>
 
       <div className="card">
         <h2>Rooftops</h2>
-        <p className="muted" style={{ marginTop: 0 }}>Disabling a rooftop blocks its users from the extension. Usage history is kept.</p>
+        <p className="muted" style={{ marginTop: 0 }}>
+          <strong>Name</strong> is what the AI prompts use to look up the store (e.g. AWC). <strong>VinSolutions name</strong> must match the
+          dealership name shown at the top of VinSolutions exactly; for people at several rooftops, the extension uses it to pick the right store.
+          Disabling a rooftop blocks users who have no other active rooftop. Usage history is kept.
+        </p>
         {!rooftops ? <p className="muted">Loading…</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th className="num">Active users</th><th /></tr></thead>
+              <thead><tr><th>Name</th><th>VinSolutions name</th><th className="num">Active users</th><th /></tr></thead>
               <tbody>
-                {rooftops.length === 0 && <tr><td colSpan={3} className="muted">No rooftops yet</td></tr>}
-                {rooftops.map((r) => (
-                  <tr key={r.id} className={r.active ? '' : 'inactive'}>
-                    <td>
-                      {renaming?.id === r.id ? (
-                        <form className="row" onSubmit={(e) => { e.preventDefault(); act(async () => { await api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { name: renaming.name } }); setRenaming(null); }); }}>
-                          <input value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} autoFocus style={{ maxWidth: 280 }} />
-                          <button className="btn small primary">Save</button>
-                          <button type="button" className="btn small" onClick={() => setRenaming(null)}>Cancel</button>
-                        </form>
-                      ) : <>{r.name} {!r.active && <span className="badge">Disabled</span>}</>}
+                {rooftops.length === 0 && <tr><td colSpan={4} className="muted">No rooftops yet</td></tr>}
+                {rooftops.map((r) => editing?.id === r.id ? (
+                  <tr key={r.id}>
+                    <td colSpan={4}>
+                      <form className="row" onSubmit={save}>
+                        <label>Name<input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} required autoFocus /></label>
+                        <label>VinSolutions name<input value={editing.crmName} onChange={(e) => setEditing({ ...editing, crmName: e.target.value })} placeholder="e.g. Ancira-Winton Chevrolet" /></label>
+                        <button className="btn small primary">Save</button>
+                        <button type="button" className="btn small" onClick={() => setEditing(null)}>Cancel</button>
+                      </form>
                     </td>
+                  </tr>
+                ) : (
+                  <tr key={r.id} className={r.active ? '' : 'inactive'}>
+                    <td>{r.name} {!r.active && <span className="badge">Disabled</span>}</td>
+                    <td>{r.crm_name || <span className="badge warn">Not set</span>}</td>
                     <td className="num">{count(r.active_users)}</td>
                     <td>
                       <div className="actions">
-                        <button className="btn small" onClick={() => setRenaming({ id: r.id, name: r.name })}>Rename</button>
+                        <button className="btn small" onClick={() => setEditing({ id: r.id, name: r.name, crmName: r.crm_name || '' })}>Edit</button>
                         {r.active
-                          ? <button className="btn small danger" onClick={() => window.confirm(`Disable ${r.name}? Its ${r.active_users} users will lose access.`) && act(() => api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { active: false } }))}>Disable</button>
+                          ? <button className="btn small danger" onClick={() => window.confirm(`Disable ${r.name}? Users with no other active rooftop will lose access.`) && act(() => api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { active: false } }))}>Disable</button>
                           : <button className="btn small" onClick={() => act(() => api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { active: true } }))}>Enable</button>}
                       </div>
                     </td>

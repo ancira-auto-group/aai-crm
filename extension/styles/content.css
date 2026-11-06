@@ -137,6 +137,32 @@
   color: #111827;
 }
 
+.aai-crm-store {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 0 auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.aai-crm-store select {
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.aai-crm-store select:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 1px;
+}
+
 .aai-crm-close-btn {
   background: none;
   border: none;

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const GET = route(async (request) => {
   await requireUser(request, { admin: true });
   const rooftops = await sql`
-    SELECT r.id, r.name, r.active, r.created_at,
+    SELECT r.id, r.name, r.crm_name, r.active, r.created_at,
            count(u.id) FILTER (WHERE u.active)::int AS active_users,
            count(u.id)::int AS total_users
     FROM rooftops r
@@ -19,14 +19,15 @@ export const GET = route(async (request) => {
   return json({ rooftops });
 });
 
-/** POST /api/admin/rooftops { name } */
+/** POST /api/admin/rooftops { name, crmName? } */
 export const POST = route(async (request) => {
   await requireUser(request, { admin: true });
   const body = await readJson(request);
   const name = str(body.name, { field: 'Name', max: 100, required: true });
+  const crmName = str(body.crmName, { field: 'VinSolutions name', max: 150 }) || null;
 
   const [rooftop] = await sql`
-    INSERT INTO rooftops (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING RETURNING *`;
+    INSERT INTO rooftops (name, crm_name) VALUES (${name}, ${crmName}) ON CONFLICT (name) DO NOTHING RETURNING *`;
   if (!rooftop) {
     throw new HttpError(409, `A rooftop named "${name}" already exists`);
   }
