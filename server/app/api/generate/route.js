@@ -14,9 +14,26 @@ export const maxDuration = 60;
 const MAX_TEXT_CHARS = 8000;
 const MAX_INSTRUCTION_CHARS = 1000;
 
-function buildMessages(systemPrompt, mode, text, instructions) {
+/**
+ * Tell the model which dealership the sender works at, so it uses the right name, address and phone.
+ * Rooftop names are the store abbreviations the prompts use (NIS, AWC, ...), so the prompt's
+ * dealership list can be looked up by them.
+ */
+function rooftopContext(rooftops) {
+  const active = (rooftops || []).filter((r) => r.active).map((r) => r.name);
+  const noDetails = 'do not add any dealership name, address or phone number that is not already in the text';
+  if (active.length === 1) {
+    return `# Sender's dealership\nThe person sending this message works at ${active[0]}. When the message needs a dealership name, address, phone number or directions, use ${active[0]}'s details only. Never use another dealership's details.`;
+  }
+  if (active.length > 1) {
+    return `# Sender's dealership\nThe person sending this message works at these dealerships: ${active.join(', ')}. When the message needs dealership details, use the one the message is about. If it isn't clear which one, ${noDetails}.`;
+  }
+  return `# Sender's dealership\nThe sender's dealership is unknown, so ${noDetails}.`;
+}
+
+function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
   const messages = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: `${systemPrompt}\n\n${rooftopContext(rooftops)}` },
     { role: 'user', content: mode === 'enhance' ? `Please enhance the following text:\n\n${text}` : text }
   ];
   if (instructions) {
@@ -46,7 +63,7 @@ export const POST = route(async (request) => {
   const instructions = str(body.additionalContext, { field: 'Instructions', max: MAX_INSTRUCTION_CHARS });
 
   const model = modelFor(user);
-  const messages = buildMessages(await getPrompt(mode), mode, text, instructions);
+  const messages = buildMessages(await getPrompt(mode), mode, text, instructions, user.rooftops);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
