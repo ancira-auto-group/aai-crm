@@ -38,6 +38,8 @@ let generationPort = null; // Open streaming connection to the background worker
 let versions = []; // Generated results for this modal: [{ text, label }]
 let versionIndex = -1;
 let shortcuts = { enhance: '', response: '' };
+let storeChoices = []; // Active stores for a multi-store user ([] for single-store users): [{ id, name }]
+let currentStoreId = null; // Store chosen for this modal, or null for "not sure" / single-store users
 const watchedDocs = new WeakSet();
 
 // SVG Icons
@@ -525,6 +527,9 @@ function openModal(mode = 'enhance') {
     if (status.shortcuts) {
       shortcuts = status.shortcuts;
     }
+    const activeStores = (status.user?.rooftops || []).filter((r) => r.active !== false);
+    storeChoices = activeStores.length > 1 ? activeStores : [];
+    currentStoreId = pickInitialStore(storeChoices, status.lastStoreId);
     createModal(mode);
   });
 }
@@ -570,6 +575,47 @@ function showSetupPrompt(signedIn = false) {
 }
 
 /**
+ * Work out which store the person is working in from the CRM page itself.
+ * Returns a store id from `stores`, or null when the page doesn't say.
+ * (Placeholder until we know where VinSolutions shows the current dealership.)
+ */
+function detectStoreFromPage(stores) { // eslint-disable-line no-unused-vars
+  return null;
+}
+
+/**
+ * Store to preselect for a multi-store user: the one the page shows, else the last one they used,
+ * else none ("Not sure"). Single-store users have no choices and always get null; the server uses their store.
+ */
+function pickInitialStore(stores, lastStoreId) {
+  if (stores.length === 0) {
+    return null;
+  }
+  const detected = detectStoreFromPage(stores);
+  if (detected) {
+    return detected;
+  }
+  return stores.some((s) => s.id === lastStoreId) ? lastStoreId : null;
+}
+
+function storePickerHtml() {
+  if (storeChoices.length === 0) {
+    return '';
+  }
+  const options = storeChoices
+    .map((s) => `<option value="${s.id}"${s.id === currentStoreId ? ' selected' : ''}>${escapeHtml(s.name)}</option>`)
+    .join('');
+  return `
+        <label class="aai-crm-store" title="Which store is this message for? Used for the dealership name, address and phone, and for usage reports.">
+          <span>Store</span>
+          <select id="aai-crm-store">
+            <option value=""${currentStoreId === null ? ' selected' : ''}>Not sure</option>
+            ${options}
+          </select>
+        </label>`;
+}
+
+/**
  * Create and show the main modal
  */
 function createModal(mode = 'enhance') {
@@ -588,7 +634,7 @@ function createModal(mode = 'enhance') {
   modal.innerHTML = `
     <div class="aai-crm-modal-content" role="dialog" aria-modal="true" aria-labelledby="aai-crm-modal-title" tabindex="-1">
       <div class="aai-crm-modal-header">
-        <h2 id="aai-crm-modal-title">${title}</h2>
+        <h2 id="aai-crm-modal-title">${title}</h2>${storePickerHtml()}
         <button class="aai-crm-close-btn" aria-label="Close (Esc)" title="Close (Esc)">&times;</button>
       </div>
       <div class="aai-crm-modal-body">
@@ -672,6 +718,17 @@ function createModal(mode = 'enhance') {
     chipBtn.textContent = chip.label;
     chipBtn.addEventListener('click', () => generateEnhancedText(chip.instruction, chip.label));
     chipsEl.appendChild(chipBtn);
+  }
+
+  // Store picker (multi-store users only): remember the choice and regenerate for the new store
+  const storeSelect = modal.querySelector('#aai-crm-store');
+  if (storeSelect) {
+    storeSelect.addEventListener('change', () => {
+      currentStoreId = storeSelect.value ? Number(storeSelect.value) : null;
+      chrome.runtime.sendMessage({ action: 'setLastStore', rooftopId: currentStoreId });
+      const store = storeChoices.find((s) => s.id === currentStoreId);
+      generateEnhancedText('', store ? store.name : 'Any store');
+    });
   }
 
   // Version navigation
@@ -910,7 +967,8 @@ function generateEnhancedText(additionalContext = '', label = '') {
   port.postMessage({
     mode: currentMode,
     text: redactedText,
-    additionalContext: additionalContext
+    additionalContext: additionalContext,
+    rooftopId: currentStoreId
   });
 }
 
