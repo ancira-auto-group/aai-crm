@@ -41,7 +41,7 @@ async function getAuth() {
 }
 
 async function clearAuth() {
-  await chrome.storage.local.remove(['auth_token', 'account']);
+  await chrome.storage.local.remove(['auth_token', 'account', 'last_store_id']);
 }
 
 /**
@@ -122,9 +122,12 @@ async function signOut() {
  */
 async function getAccount() {
   const data = await callServer('/api/me');
-  await chrome.storage.local.set({ account: data });
+  await chrome.storage.local.set({ account: { ...data, fetchedAt: Date.now() } });
   return data;
 }
+
+// Rooftop assignments change rarely; refresh the cached account in the background when it's older than this
+const ACCOUNT_REFRESH_MS = 10 * 60 * 1000;
 
 async function changePassword(currentPassword, newPassword) {
   await callServer('/api/auth/password', { method: 'POST', body: { currentPassword, newPassword } });
@@ -147,11 +150,18 @@ async function getShortcuts() {
  * Local status, no network: is someone signed in, and who (as of the last server check)
  */
 async function getStatus() {
-  const [{ token, account }, shortcuts] = await Promise.all([getAuth(), getShortcuts()]);
+  const [{ token, account }, shortcuts, { last_store_id: lastStoreId }] = await Promise.all([
+    getAuth(), getShortcuts(), chrome.storage.local.get(['last_store_id'])
+  ]);
+  if (token && Date.now() - (account?.fetchedAt || 0) > ACCOUNT_REFRESH_MS) {
+    // Picks up rooftop changes made by an admin; the next modal sees them
+    getAccount().catch(() => {});
+  }
   return {
     signedIn: !!token,
     mustChangePassword: !!account?.user?.mustChangePassword,
     user: account?.user || null,
+    lastStoreId: lastStoreId ?? null,
     shortcuts
   };
 }
@@ -171,7 +181,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 // The only actions content scripts (running inside CRM pages) may trigger
-const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions']);
+const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore']);
 
 const HANDLERS = {
   getStatus: () => getStatus(),
@@ -180,6 +190,10 @@ const HANDLERS = {
   signOut: () => signOut(),
   changePassword: (request) => changePassword(request.currentPassword, request.newPassword),
   openOptions: () => chrome.runtime.openOptionsPage(),
+  // Remember a multi-store user's last store choice (null = "Not sure")
+  setLastStore: (request) => chrome.storage.local.set({
+    last_store_id: Number.isInteger(request.rooftopId) ? request.rooftopId : null
+  }),
   getServerUrl: () => getServerUrl(),
   setServerUrl: async (request) => {
     // Changing servers ends the current session
@@ -293,7 +307,12 @@ async function streamGeneration(request, controller, onDelta) {
     resetTimeout();
     const response = await callServer('/api/generate', {
       method: 'POST',
-      body: { mode: request.mode, text: request.text, additionalContext: request.additionalContext || '' },
+      body: {
+        mode: request.mode,
+        text: request.text,
+        additionalContext: request.additionalContext || '',
+        rooftopId: Number.isInteger(request.rooftopId) ? request.rooftopId : null
+      },
       signal: controller.signal,
       stream: true
     });

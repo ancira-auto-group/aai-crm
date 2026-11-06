@@ -574,13 +574,39 @@ function showSetupPrompt(signedIn = false) {
   setupModal.querySelector('#aai-crm-open-settings').focus();
 }
 
+// Where VinSolutions shows the dealership the user is working in (top frame header)
+const DEALER_HEADER_SELECTORS = [
+  '#ccrm-dealer-header-display .ccrm-dealer-header-display-title-name',
+  '.ccrm-dealer-header-display-title-name'
+];
+
+const normalizeName = (name) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * The dealership name VinSolutions shows in its header, e.g. "Ancira-Winton Chevrolet", or null
+ */
+function currentDealershipName() {
+  for (const selector of DEALER_HEADER_SELECTORS) {
+    const text = document.querySelector(selector)?.textContent?.trim();
+    if (text) {
+      return text;
+    }
+  }
+  return null;
+}
+
 /**
  * Work out which store the person is working in from the CRM page itself.
- * Returns a store id from `stores`, or null when the page doesn't say.
- * (Placeholder until we know where VinSolutions shows the current dealership.)
+ * Returns a store id from `stores`; null when the page shows a dealership that isn't one of them;
+ * undefined when the page doesn't say. Matches the rooftop's VinSolutions name (or its name).
  */
-function detectStoreFromPage(stores) { // eslint-disable-line no-unused-vars
-  return null;
+function detectStoreFromPage(stores) {
+  const shown = normalizeName(currentDealershipName());
+  if (!shown) {
+    return undefined;
+  }
+  const match = stores.find((s) => normalizeName(s.crmName) === shown || normalizeName(s.name) === shown);
+  return match ? match.id : null;
 }
 
 /**
@@ -592,8 +618,8 @@ function pickInitialStore(stores, lastStoreId) {
     return null;
   }
   const detected = detectStoreFromPage(stores);
-  if (detected) {
-    return detected;
+  if (detected !== undefined) {
+    return detected; // The page says which store (or that it's none of theirs): trust it over memory
   }
   return stores.some((s) => s.id === lastStoreId) ? lastStoreId : null;
 }

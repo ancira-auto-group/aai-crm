@@ -43,7 +43,8 @@ function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
 }
 
 /**
- * POST /api/generate  { mode: 'enhance'|'response', text, additionalContext? }
+ * POST /api/generate  { mode: 'enhance'|'response', text, additionalContext?, rooftopId? }
+ * rooftopId: the store a multi-store user picked; the request then counts 100% toward it.
  * Streams server-sent events:
  *   data: {"type":"delta","text":"..."}
  *   data: {"type":"done","text":"...","truncated":false}
@@ -62,8 +63,13 @@ export const POST = route(async (request) => {
   const text = str(body.text, { field: 'Text', max: MAX_TEXT_CHARS, required: true });
   const instructions = str(body.additionalContext, { field: 'Instructions', max: MAX_INSTRUCTION_CHARS });
 
+  // A multi-store user may say which store this message is for. Only their own active rooftops count;
+  // anything else falls back to all of their active rooftops.
+  const chosen = user.rooftops.find((r) => r.active && r.id === body.rooftopId);
+  const rooftops = chosen ? [chosen] : user.rooftops;
+
   const model = modelFor(user);
-  const messages = buildMessages(await getPrompt(mode), mode, text, instructions, user.rooftops);
+  const messages = buildMessages(await getPrompt(mode), mode, text, instructions, rooftops);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -103,7 +109,7 @@ export const POST = route(async (request) => {
           VALUES (${user.id}, ${mode}, ${model}, ${inputTokens}, ${outputTokens},
                   ${estimateCost(model, inputTokens, outputTokens)}, ${status})
           RETURNING id`;
-        await attributeUsage(event.id, user.rooftops);
+        await attributeUsage(event.id, rooftops);
         await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
       } catch (error) {
         console.error('Could not record usage', error);

@@ -4,7 +4,7 @@ import { HttpError } from './http.js';
 /** A user's rooftops as [{ id, name, active }], sorted by name */
 export async function getUserRooftops(userId) {
   return sql`
-    SELECT r.id, r.name, r.active
+    SELECT r.id, r.name, r.active, r.crm_name AS "crmName"
     FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
     WHERE ur.user_id = ${userId}
     ORDER BY r.name`;

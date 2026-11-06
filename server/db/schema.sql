@@ -88,3 +88,7 @@ CREATE INDEX IF NOT EXISTS usage_event_rooftops_rooftop_idx ON usage_event_rooft
 INSERT INTO usage_event_rooftops (event_id, rooftop_id, share)
   SELECT id, rooftop_id, 1 FROM usage_events WHERE rooftop_id IS NOT NULL
   ON CONFLICT DO NOTHING;
+
+-- The dealership name exactly as VinSolutions shows it in its header (e.g. "Ancira-Winton Chevrolet").
+-- The extension reads that header to preselect the store for users at several rooftops.
+ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS crm_name text;
