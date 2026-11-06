@@ -117,6 +117,7 @@ function init() {
   });
 
   loadShortcuts();
+  watchDealershipHeader();
   console.log('AAI CRM Extension: Content script initialized');
 }
 
@@ -529,7 +530,7 @@ function openModal(mode = 'enhance') {
     }
     const activeStores = (status.user?.rooftops || []).filter((r) => r.active !== false);
     storeChoices = activeStores.length > 1 ? activeStores : [];
-    currentStoreId = pickInitialStore(storeChoices, status.lastStoreId);
+    currentStoreId = pickInitialStore(storeChoices, status.lastStoreId, status.reportedDealership);
     createModal(mode);
   });
 }
@@ -600,8 +601,8 @@ function currentDealershipName() {
  * Returns a store id from `stores`; null when the page shows a dealership that isn't one of them;
  * undefined when the page doesn't say. Matches the rooftop's VinSolutions name (or its name).
  */
-function detectStoreFromPage(stores) {
-  const shown = normalizeName(currentDealershipName());
+function matchStore(stores, dealershipName) {
+  const shown = normalizeName(dealershipName);
   if (!shown) {
     return undefined;
   }
@@ -610,18 +611,54 @@ function detectStoreFromPage(stores) {
 }
 
 /**
- * Store to preselect for a multi-store user: the one the page shows, else the last one they used,
- * else none ("Not sure"). Single-store users have no choices and always get null; the server uses their store.
+ * Store to preselect for a multi-store user, in order:
+ *   1. the dealership shown on this page (the main VinSolutions window);
+ *   2. the dealership the main VinSolutions window last reported (for pop-ups such as the SMS window,
+ *      which don't show it);
+ *   3. the store they picked last;
+ *   4. none ("Not sure").
+ * Single-store users have no choices and always get null; the server uses their store.
  */
-function pickInitialStore(stores, lastStoreId) {
+function pickInitialStore(stores, lastStoreId, reportedDealership) {
   if (stores.length === 0) {
     return null;
   }
-  const detected = detectStoreFromPage(stores);
-  if (detected !== undefined) {
-    return detected; // The page says which store (or that it's none of theirs): trust it over memory
+  for (const name of [currentDealershipName(), reportedDealership]) {
+    const detected = matchStore(stores, name);
+    if (detected !== undefined) {
+      return detected; // VinSolutions says which store (or that it's none of theirs): trust it over memory
+    }
   }
   return stores.some((s) => s.id === lastStoreId) ? lastStoreId : null;
+}
+
+/**
+ * The main VinSolutions window shows the current dealership in its header; pop-ups (like the SMS window)
+ * don't. Report it to the background worker when the page loads, when the user switches dealership,
+ * and when this window gets focus, so pop-ups can use it.
+ */
+let lastReportedDealership = null;
+function reportDealership(force = false) {
+  const name = currentDealershipName();
+  if (!name || (name === lastReportedDealership && !force)) {
+    return;
+  }
+  lastReportedDealership = name;
+  chrome.runtime.sendMessage({ action: 'reportDealership', name }, () => void chrome.runtime.lastError);
+}
+
+function watchDealershipHeader() {
+  reportDealership(true);
+  // VinSolutions swaps the header text in place when the user changes dealership.
+  // Busy pages change constantly, so only look at the header once things settle.
+  let timer = null;
+  new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => reportDealership(), 500);
+  }).observe(document.documentElement, {
+    childList: true, subtree: true, characterData: true
+  });
+  window.addEventListener('focus', () => reportDealership(true));
 }
 
 function storePickerHtml() {
