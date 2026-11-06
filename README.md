@@ -30,11 +30,11 @@ Open the admin page at [aai-crm.ancira.app/admin](https://aai-crm.ancira.app/adm
 | Tab | What it's for |
 |---|---|
 | **Usage** | Requests, active users, tokens and estimated cost for any date range, broken down by rooftop and by user. Click a rooftop to filter the users. Export either table to CSV. |
-| **Users** | Add users (they get a temporary password to change on first sign-in), assign each to a rooftop and AI model, reset passwords, unlock accounts after too many failed sign-ins, disable or re-enable access. |
-| **Rooftops** | Add, rename, disable or re-enable rooftops. Disabling one blocks all of its users. |
+| **Users** | Add users (they get a temporary password to change on first sign-in), assign each to one or more rooftops and an AI model, reset passwords, unlock accounts after too many failed sign-ins, disable or re-enable access. |
+| **Rooftops** | Add, rename, disable or re-enable rooftops. Disabling one blocks users who have no other active rooftop. |
 | **Prompts** | Edit the instructions the AI follows for Enhance and Reply. Changes apply to everyone within about a minute. See [docs/writing-prompts.md](docs/writing-prompts.md). |
 
-Each request is recorded with the rooftop the user belonged to at the time, so moving someone to another rooftop doesn't rewrite past reports. Users and rooftops are disabled rather than deleted, so their usage history stays intact.
+Each request is recorded with the rooftops the user belonged to at the time, so moving someone to another rooftop doesn't rewrite past reports. Requests from someone assigned to several rooftops are split evenly among their active rooftops (two rooftops: half the request, tokens and cost each), so rooftop totals always add up to the overall total and can show fractions. Users and rooftops are disabled rather than deleted, so their usage history stays intact.
 
 ### AI models
 

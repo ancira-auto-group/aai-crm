@@ -4,6 +4,7 @@ import { HttpError, readJson, route, str } from '../../../lib/http.js';
 import { estimateCost, modelFor } from '../../../lib/models.js';
 import { streamChat } from '../../../lib/openai.js';
 import { getPrompt, MODES } from '../../../lib/prompts.js';
+import { attributeUsage } from '../../../lib/rooftops.js';
 import { checkExtensionVersion } from '../../../lib/version.js';
 
 export const runtime = 'nodejs';
@@ -80,10 +81,12 @@ export const POST = route(async (request) => {
       const inputTokens = usage?.prompt_tokens || 0;
       const outputTokens = usage?.completion_tokens || 0;
       try {
-        await sql`
-          INSERT INTO usage_events (user_id, rooftop_id, mode, model, input_tokens, output_tokens, cost_usd, status)
-          VALUES (${user.id}, ${user.rooftop_id}, ${mode}, ${model}, ${inputTokens}, ${outputTokens},
-                  ${estimateCost(model, inputTokens, outputTokens)}, ${status})`;
+        const [event] = await sql`
+          INSERT INTO usage_events (user_id, mode, model, input_tokens, output_tokens, cost_usd, status)
+          VALUES (${user.id}, ${mode}, ${model}, ${inputTokens}, ${outputTokens},
+                  ${estimateCost(model, inputTokens, outputTokens)}, ${status})
+          RETURNING id`;
+        await attributeUsage(event.id, user.rooftops);
         await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
       } catch (error) {
         console.error('Could not record usage', error);

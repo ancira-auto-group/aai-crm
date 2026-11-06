@@ -10,7 +10,8 @@ Requires the AAI for CRM server (in `server/`). Users sign in with an account in
 
 - **Accounts**: users sign in with an email and password created by an admin; temporary passwords must be changed on first sign-in
 - **One server-side OpenAI key**: the key lives only on the server; the extension never sees it. Old API keys saved by 2.x are deleted from the browser on upgrade
-- **Rooftops and usage tracking**: every request is logged with its user and rooftop (requests, tokens, estimated cost), with reports and CSV export on the admin page
+- **Rooftops and usage tracking**: every request is logged with its user and rooftops (requests, tokens, estimated cost), with reports and CSV export on the admin page
+- **Users can belong to several rooftops**: their requests are split evenly among their active rooftops, so rooftop totals still add up; disabling one rooftop only blocks users with no other active rooftop
 - **Admin page** (`/admin`): manage rooftops and users (add, edit, disable, reset password, unlock), choose each user's AI model, edit the Enhance and Reply prompts
 - **Prompts moved to the server**: the GitHub Gist prompts are imported once and then edited on the admin page; the daily Gist refresh is gone
 - **Models**: GPT-6 Luna (default), GPT-6.1 Terra and GPT-6.1 Sol (replaces GPT-6 Sol), assigned per user by an admin
