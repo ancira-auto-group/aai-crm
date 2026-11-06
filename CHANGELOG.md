@@ -19,6 +19,7 @@ Requires the AAI for CRM server (in `server/`). Users sign in with an account in
 - Fixed: the "Open Settings" button in the in-page setup prompt did nothing (content scripts can't open the options page directly)
 - Removed the `alarms` permission and the `api.openai.com` host permission
 - Repository reorganized: extension in `extension/`, server in `server/`
+- New icon: text lines with an AI sparkle, in the extension's purple (source in `docs/icon.svg`)
 
 ## [2.2.0]
 
