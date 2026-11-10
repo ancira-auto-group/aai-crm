@@ -129,9 +129,6 @@ async function getAccount() {
 // Rooftop assignments change rarely; refresh the cached account in the background when it's older than this
 const ACCOUNT_REFRESH_MS = 10 * 60 * 1000;
 
-// Ignore a dealership reported by the main VinSolutions window longer ago than this
-const DEALERSHIP_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-
 async function changePassword(currentPassword, newPassword) {
   await callServer('/api/auth/password', { method: 'POST', body: { currentPassword, newPassword } });
   return getAccount();
@@ -153,8 +150,8 @@ async function getShortcuts() {
  * Local status, no network: is someone signed in, and who (as of the last server check)
  */
 async function getStatus() {
-  const [{ token, account }, shortcuts, { last_store_id: lastStoreId }, { crm_dealership: dealership }] = await Promise.all([
-    getAuth(), getShortcuts(), chrome.storage.local.get(['last_store_id']), chrome.storage.session.get(['crm_dealership'])
+  const [{ token, account }, shortcuts, { last_store_id: lastStoreId }] = await Promise.all([
+    getAuth(), getShortcuts(), chrome.storage.local.get(['last_store_id'])
   ]);
   if (token && Date.now() - (account?.fetchedAt || 0) > ACCOUNT_REFRESH_MS) {
     // Picks up rooftop changes made by an admin; the next modal sees them
@@ -165,8 +162,6 @@ async function getStatus() {
     mustChangePassword: !!account?.user?.mustChangePassword,
     user: account?.user || null,
     lastStoreId: lastStoreId ?? null,
-    // Dealership the main VinSolutions window last showed (this browser session only)
-    reportedDealership: dealership && Date.now() - dealership.at < DEALERSHIP_MAX_AGE_MS ? dealership.name : null,
     shortcuts
   };
 }
@@ -186,7 +181,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 // The only actions content scripts (running inside CRM pages) may trigger
-const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore', 'reportDealership']);
+const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore']);
 
 const HANDLERS = {
   getStatus: () => getStatus(),
@@ -195,12 +190,7 @@ const HANDLERS = {
   signOut: () => signOut(),
   changePassword: (request) => changePassword(request.currentPassword, request.newPassword),
   openOptions: () => chrome.runtime.openOptionsPage(),
-  // Remember a multi-store user's last store choice (null = "Not sure")
-  // The main VinSolutions window reports the dealership in its header; pop-ups use the latest one
-  reportDealership: (request) => {
-    const name = typeof request.name === 'string' ? request.name.trim().slice(0, 150) : '';
-    return name ? chrome.storage.session.set({ crm_dealership: { name, at: Date.now() } }) : undefined;
-  },
+  // A multi-store user's Current store (null = "Not sure"), shared by the popup, settings page and Enhance/Reply window
   setLastStore: (request) => chrome.storage.local.set({
     last_store_id: Number.isInteger(request.rooftopId) ? request.rooftopId : null
   }),

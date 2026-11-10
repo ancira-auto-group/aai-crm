@@ -4,7 +4,12 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.1.1] - Unreleased
+## [3.1.2] - Unreleased
+
+- **Current store setting** for people at several stores: a dropdown in the extension popup and on the settings page (and in the Enhance/Reply window), remembered across sessions. The AI uses that store's details and requests count toward it. People at one store see no dropdown
+- Removed automatic store detection from VinSolutions pages, which didn't work in the SMS pop-up, and the VinSolutions name field on the admin Rooftops tab
+
+## [3.1.1] - 2026-11-06
 
 - **Store detection works in the SMS pop-up**: the pop-up doesn't show the dealership, so the main VinSolutions window now reports the dealership in its header to the extension (on load, when you switch dealership, and when that window gets focus), and pop-ups use the most recently reported one
 

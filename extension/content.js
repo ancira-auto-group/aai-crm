@@ -117,7 +117,6 @@ function init() {
   });
 
   loadShortcuts();
-  watchDealershipHeader();
   console.log('AAI CRM Extension: Content script initialized');
 }
 
@@ -530,7 +529,7 @@ function openModal(mode = 'enhance') {
     }
     const activeStores = (status.user?.rooftops || []).filter((r) => r.active !== false);
     storeChoices = activeStores.length > 1 ? activeStores : [];
-    currentStoreId = pickInitialStore(storeChoices, status.lastStoreId, status.reportedDealership);
+    currentStoreId = pickInitialStore(storeChoices, status.lastStoreId);
     createModal(mode);
   });
 }
@@ -575,90 +574,16 @@ function showSetupPrompt(signedIn = false) {
   setupModal.querySelector('#aai-crm-open-settings').focus();
 }
 
-// Where VinSolutions shows the dealership the user is working in (top frame header)
-const DEALER_HEADER_SELECTORS = [
-  '#ccrm-dealer-header-display .ccrm-dealer-header-display-title-name',
-  '.ccrm-dealer-header-display-title-name'
-];
-
-const normalizeName = (name) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
 /**
- * The dealership name VinSolutions shows in its header, e.g. "Ancira-Winton Chevrolet", or null
- */
-function currentDealershipName() {
-  for (const selector of DEALER_HEADER_SELECTORS) {
-    const text = document.querySelector(selector)?.textContent?.trim();
-    if (text) {
-      return text;
-    }
-  }
-  return null;
-}
-
-/**
- * Work out which store the person is working in from the CRM page itself.
- * Returns a store id from `stores`; null when the page shows a dealership that isn't one of them;
- * undefined when the page doesn't say. Matches the rooftop's VinSolutions name (or its name).
- */
-function matchStore(stores, dealershipName) {
-  const shown = normalizeName(dealershipName);
-  if (!shown) {
-    return undefined;
-  }
-  const match = stores.find((s) => normalizeName(s.crmName) === shown || normalizeName(s.name) === shown);
-  return match ? match.id : null;
-}
-
-/**
- * Store to preselect for a multi-store user, in order:
- *   1. the dealership shown on this page (the main VinSolutions window);
- *   2. the dealership the main VinSolutions window last reported (for pop-ups such as the SMS window,
- *      which don't show it);
- *   3. the store they picked last;
- *   4. none ("Not sure").
+ * Store to preselect for a multi-store user: their Current store setting (chosen in the extension
+ * popup, settings page or this window), or none ("Not sure") if they haven't picked one.
  * Single-store users have no choices and always get null; the server uses their store.
  */
-function pickInitialStore(stores, lastStoreId, reportedDealership) {
+function pickInitialStore(stores, currentStoreSetting) {
   if (stores.length === 0) {
     return null;
   }
-  for (const name of [currentDealershipName(), reportedDealership]) {
-    const detected = matchStore(stores, name);
-    if (detected !== undefined) {
-      return detected; // VinSolutions says which store (or that it's none of theirs): trust it over memory
-    }
-  }
-  return stores.some((s) => s.id === lastStoreId) ? lastStoreId : null;
-}
-
-/**
- * The main VinSolutions window shows the current dealership in its header; pop-ups (like the SMS window)
- * don't. Report it to the background worker when the page loads, when the user switches dealership,
- * and when this window gets focus, so pop-ups can use it.
- */
-let lastReportedDealership = null;
-function reportDealership(force = false) {
-  const name = currentDealershipName();
-  if (!name || (name === lastReportedDealership && !force)) {
-    return;
-  }
-  lastReportedDealership = name;
-  chrome.runtime.sendMessage({ action: 'reportDealership', name }, () => void chrome.runtime.lastError);
-}
-
-function watchDealershipHeader() {
-  reportDealership(true);
-  // VinSolutions swaps the header text in place when the user changes dealership.
-  // Busy pages change constantly, so only look at the header once things settle.
-  let timer = null;
-  new MutationObserver(() => {
-    clearTimeout(timer);
-    timer = setTimeout(() => reportDealership(), 500);
-  }).observe(document.documentElement, {
-    childList: true, subtree: true, characterData: true
-  });
-  window.addEventListener('focus', () => reportDealership(true));
+  return stores.some((s) => s.id === currentStoreSetting) ? currentStoreSetting : null;
 }
 
 function storePickerHtml() {
@@ -669,10 +594,10 @@ function storePickerHtml() {
     .map((s) => `<option value="${s.id}"${s.id === currentStoreId ? ' selected' : ''}>${escapeHtml(s.name)}</option>`)
     .join('');
   return `
-        <label class="aai-crm-store" title="Which store is this message for? Used for the dealership name, address and phone, and for usage reports.">
+        <label class="aai-crm-store" title="Your current store. Used for the dealership name, address and phone, and for usage reports. You can also change it from the extension icon.">
           <span>Store</span>
           <select id="aai-crm-store">
-            <option value=""${currentStoreId === null ? ' selected' : ''}>Not sure</option>
+            <option value=""${currentStoreId === null ? ' selected' : ''}>${currentStoreId === null ? 'Choose your store' : 'Not sure'}</option>
             ${options}
           </select>
         </label>`;
