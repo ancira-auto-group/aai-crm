@@ -22,6 +22,25 @@ function setStatus(ok, text) {
   $('statusText').textContent = text;
 }
 
+/**
+ * Current store dropdown for users at more than one store. Shared with the settings page and the
+ * Enhance/Reply window, and remembered.
+ */
+function showStorePicker(user, currentStoreId) {
+  const stores = (user?.rooftops || []).filter((r) => r.active !== false);
+  $('storePicker').hidden = stores.length < 2;
+  if (stores.length < 2) {
+    return;
+  }
+  const current = stores.some((s) => s.id === currentStoreId) ? currentStoreId : null;
+  const select = $('currentStore');
+  select.replaceChildren(
+    new Option(current === null ? 'Choose your store' : 'Not sure', ''),
+    ...stores.map((s) => new Option(s.name, String(s.id)))
+  );
+  select.value = current === null ? '' : String(current);
+}
+
 function showUsage(usage) {
   if (!usage) {
     return;
@@ -31,10 +50,18 @@ function showUsage(usage) {
   $('monthCost').textContent = `$${cost.toFixed(cost > 0 && cost < 0.01 ? 4 : 2)}`;
 }
 
+let currentStoreId = null; // Latest Current store choice, so a slow account refresh can't undo a change
+
 async function init() {
   $('versionText').textContent = `Version ${chrome.runtime.getManifest().version}`;
   $('openSettings').addEventListener('click', () => chrome.runtime.openOptionsPage());
   $('editShortcuts').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));
+  $('currentStore').addEventListener('change', (e) => {
+    const rooftopId = e.target.value ? Number(e.target.value) : null;
+    currentStoreId = rooftopId;
+    chrome.runtime.sendMessage({ action: 'setLastStore', rooftopId });
+    e.target.options[0].text = rooftopId === null ? 'Choose your store' : 'Not sure';
+  });
 
   const status = await send('getStatus').catch(() => null);
   if (status?.shortcuts) {
@@ -49,13 +76,18 @@ async function init() {
   }
 
   setStatus(true, `Signed in as ${status.user?.name || status.user?.email || 'you'}`);
+  currentStoreId = status.lastStoreId;
+  showStorePicker(status.user, currentStoreId);
   try {
     const account = await send('getAccount');
     if (account.user.mustChangePassword) {
       setStatus(false, 'Choose a new password in Settings');
       return;
     }
-    setStatus(true, `${account.user.name || account.user.email}${account.user.rooftop ? ` · ${account.user.rooftop.name}` : ''}`);
+    const stores = (account.user.rooftops || []).filter((r) => r.active !== false);
+    const storeLabel = stores.length === 1 ? ` · ${stores[0].name}` : '';
+    setStatus(true, `${account.user.name || account.user.email}${storeLabel}`);
+    showStorePicker(account.user, currentStoreId);
     showUsage(account.usageThisMonth);
   } catch (error) {
     // Offline or signed out on the server: keep the local status, mention the problem

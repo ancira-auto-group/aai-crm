@@ -71,6 +71,8 @@ function showAccount(account) {
   $('usageRequests').textContent = (usageThisMonth?.requests || 0).toLocaleString();
   $('usageCost').textContent = formatCost(usageThisMonth?.cost_usd);
 
+  showStorePicker(user);
+
   $('mustChangeNotice').hidden = !user.mustChangePassword;
   $('usageSection').hidden = user.mustChangePassword;
   $('currentPassword').previousElementSibling.textContent = user.mustChangePassword
@@ -79,6 +81,26 @@ function showAccount(account) {
   if (user.mustChangePassword) {
     $('currentPassword').focus();
   }
+}
+
+/**
+ * Current store dropdown, only for users assigned to more than one active store.
+ * The choice is shared with the popup and the Enhance/Reply window, and remembered.
+ */
+async function showStorePicker(user) {
+  const stores = (user.rooftops || []).filter((r) => r.active !== false);
+  $('storeGroup').hidden = stores.length < 2;
+  if (stores.length < 2) {
+    return;
+  }
+  const status = await send('getStatus').catch(() => ({}));
+  const current = stores.some((s) => s.id === status.lastStoreId) ? status.lastStoreId : null;
+  const select = $('currentStore');
+  select.replaceChildren(
+    new Option(current === null ? 'Choose your store' : 'Not sure', ''),
+    ...stores.map((s) => new Option(s.name, String(s.id)))
+  );
+  select.value = current === null ? '' : String(current);
 }
 
 async function refresh() {
@@ -171,6 +193,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('versionText').textContent = `Version ${chrome.runtime.getManifest().version}`;
 
   $('signInSection').addEventListener('submit', handleSignIn);
+  $('currentStore').addEventListener('change', async (e) => {
+    const rooftopId = e.target.value ? Number(e.target.value) : null;
+    await send('setLastStore', { rooftopId }).catch(() => {});
+    e.target.options[0].text = rooftopId === null ? 'Choose your store' : 'Not sure';
+  });
   $('signOutBtn').addEventListener('click', handleSignOut);
   $('passwordSection').addEventListener('submit', handleChangePassword);
   $('saveServerUrl').addEventListener('click', () => saveServerUrl($('serverUrl').value.trim()));
