@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { requireUser } from '../../../lib/auth.js';
 import { sql } from '../../../lib/db.js';
 import { HttpError, readJson, route, str } from '../../../lib/http.js';
@@ -52,6 +53,7 @@ function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
  * Closing the request cancels the OpenAI call.
  */
 export const POST = route(async (request) => {
+  const startedAt = Date.now();
   checkExtensionVersion(request);
   const user = await requireUser(request);
   const body = await readJson(request);
@@ -71,6 +73,31 @@ export const POST = route(async (request) => {
   const model = modelFor(user);
   const messages = buildMessages(await getPrompt(mode), mode, text, instructions, rooftops);
   const encoder = new TextEncoder();
+  const setupMs = Date.now() - startedAt;
+
+  // Usage is written after the response has been sent, so the database never delays the result.
+  // after() keeps the function alive until it's done.
+  let finishUsage;
+  const usageReady = new Promise((resolve) => { finishUsage = resolve; });
+  after(async () => {
+    const record = await usageReady;
+    const dbStart = Date.now();
+    try {
+      const [event] = await sql`
+        INSERT INTO usage_events (user_id, mode, model, input_tokens, output_tokens, cost_usd, status,
+                                  setup_ms, first_token_ms, total_ms)
+        VALUES (${user.id}, ${mode}, ${model}, ${record.inputTokens}, ${record.outputTokens},
+                ${estimateCost(model, record.inputTokens, record.outputTokens)}, ${record.status},
+                ${setupMs}, ${record.firstTokenMs}, ${record.totalMs})
+        RETURNING id`;
+      await attributeUsage(event.id, rooftops);
+      await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
+    } catch (error) {
+      console.error('Could not record usage', error);
+    }
+    console.log(`generate user=${user.id} model=${model} status=${record.status} setup=${setupMs}ms ` +
+      `first_token=${record.firstTokenMs ?? '-'}ms total=${record.totalMs}ms usage_write=${Date.now() - dbStart}ms`);
+  });
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -86,33 +113,24 @@ export const POST = route(async (request) => {
       let usage = null;
       let result = null;
       let failure = null;
+      let firstTokenMs = null;
 
       try {
         result = await streamChat({
           model,
           messages,
           signal: request.signal,
-          onDelta: (delta) => send({ type: 'delta', text: delta })
+          onDelta: (delta) => {
+            if (firstTokenMs === null) {
+              firstTokenMs = Date.now() - startedAt;
+            }
+            send({ type: 'delta', text: delta });
+          }
         });
         usage = result.usage;
       } catch (error) {
         status = error.cancelled ? 'cancelled' : 'error';
         failure = error;
-      }
-
-      // Record usage before closing the stream so the write isn't cut off when the function ends
-      const inputTokens = usage?.prompt_tokens || 0;
-      const outputTokens = usage?.completion_tokens || 0;
-      try {
-        const [event] = await sql`
-          INSERT INTO usage_events (user_id, mode, model, input_tokens, output_tokens, cost_usd, status)
-          VALUES (${user.id}, ${mode}, ${model}, ${inputTokens}, ${outputTokens},
-                  ${estimateCost(model, inputTokens, outputTokens)}, ${status})
-          RETURNING id`;
-        await attributeUsage(event.id, rooftops);
-        await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
-      } catch (error) {
-        console.error('Could not record usage', error);
       }
 
       if (failure) {
@@ -129,6 +147,14 @@ export const POST = route(async (request) => {
       } catch {
         // Already closed by the client disconnecting
       }
+
+      finishUsage({
+        status,
+        inputTokens: usage?.prompt_tokens || 0,
+        outputTokens: usage?.completion_tokens || 0,
+        firstTokenMs,
+        totalMs: Date.now() - startedAt
+      });
     }
   });
 

@@ -7,6 +7,7 @@ The extension and the server share one version number; see "Versioning" in the R
 ## [3.1.3] - Unreleased
 
 - **The Enhance/Reply window fits small windows**, like the VinSolutions SMS pop-up: the result text box shrinks instead of the whole window scrolling, so the tweak buttons (Shorter, More formal…) and Copy & Close are always visible. Tighter spacing on short and narrow screens
+- Server: the result is sent before usage is written to the database, so a slow or waking database never delays it; each request now records its timings (setup, first AI text, total) for troubleshooting
 
 ## [3.1.2] - 2026-11-10
 

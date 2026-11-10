@@ -92,3 +92,9 @@ INSERT INTO usage_event_rooftops (event_id, rooftop_id, share)
 -- The dealership name exactly as VinSolutions shows it in its header (e.g. "Ancira-Winton Chevrolet").
 -- The extension reads that header to preselect the store for users at several rooftops.
 ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS crm_name text;
+
+-- Request timings in milliseconds, from the server receiving the request:
+-- setup (sign-in check, prompt), first_token (first text from the AI), total (AI finished).
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS setup_ms integer;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS first_token_ms integer;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS total_ms integer;
