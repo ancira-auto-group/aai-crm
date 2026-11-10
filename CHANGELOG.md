@@ -4,7 +4,11 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.1.2] - Unreleased
+## [3.1.3] - Unreleased
+
+- **The Enhance/Reply window fits small windows**, like the VinSolutions SMS pop-up: the result text box shrinks instead of the whole window scrolling, so the tweak buttons (Shorter, More formal…) and Copy & Close are always visible. Tighter spacing on short and narrow screens
+
+## [3.1.2] - 2026-11-10
 
 - **Current store setting** for people at several stores: a dropdown in the extension popup and on the settings page (and in the Enhance/Reply window), remembered across sessions. The AI uses that store's details and requests count toward it. People at one store see no dropdown
 - Removed automatic store detection from VinSolutions pages, which didn't work in the SMS pop-up, and the VinSolutions name field on the admin Rooftops tab
