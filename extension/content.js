@@ -630,7 +630,7 @@ function createModal(mode = 'enhance') {
           <label>${originalLabel}</label>
           <div class="aai-crm-original-text">${escapeHtml(currentSelection)}</div>
         </div>
-        <div class="aai-crm-section">
+        <div class="aai-crm-section aai-crm-result-section">
           <div class="aai-crm-result-header">
             <label for="aai-crm-result">${resultLabel}</label>
             <div class="aai-crm-version-nav" style="display: none;">

@@ -102,7 +102,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 600px;
   width: 90%;
-  max-height: 85vh;
+  max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   animation: aai-crm-slide-up 0.3s ease;
@@ -188,7 +188,24 @@
 .aai-crm-modal-body {
   padding: 24px;
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Column layout so the result text box can shrink and the tweak buttons stay in view */
+  display: flex;
+  flex-direction: column;
+}
+
+.aai-crm-modal-body > .aai-crm-section,
+.aai-crm-modal-body > .aai-crm-flair-section {
+  flex: none;
+}
+
+/* The result section takes whatever height is left; its text box shrinks first */
+.aai-crm-modal-body > .aai-crm-result-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .aai-crm-section {
@@ -216,7 +233,7 @@
   font-size: 14px;
   line-height: 1.6;
   color: #4b5563;
-  max-height: 150px;
+  max-height: min(150px, 18vh);
   overflow-y: auto;
 }
 
@@ -246,8 +263,12 @@
   line-height: 1.6;
   color: #111827;
   font-family: inherit;
-  resize: vertical;
+  resize: none;
   transition: border-color 0.15s ease;
+  /* Starts at its rows height, shrinks to fit short windows (the SMS pop-up) */
+  flex: 1 1 auto;
+  min-height: 72px;
+  box-sizing: border-box;
 }
 
 .aai-crm-enhanced-text:focus {
@@ -527,4 +548,116 @@
 .aai-crm-modal-body::-webkit-scrollbar-thumb:hover,
 .aai-crm-original-text::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Short windows, like the VinSolutions SMS pop-up: tighten spacing so everything fits without scrolling */
+@media (max-height: 760px) {
+  .aai-crm-modal-content {
+    max-height: calc(100vh - 16px);
+    width: 96%;
+  }
+
+  .aai-crm-modal-header {
+    padding: 12px 16px;
+  }
+
+  .aai-crm-modal-header h2 {
+    font-size: 17px;
+  }
+
+  .aai-crm-modal-body {
+    padding: 12px 16px;
+  }
+
+  .aai-crm-section {
+    margin-bottom: 12px;
+  }
+
+  .aai-crm-section label {
+    margin-bottom: 4px;
+  }
+
+  .aai-crm-original-text {
+    padding: 8px 10px;
+    max-height: min(110px, 14vh);
+  }
+
+  .aai-crm-enhanced-text {
+    padding: 8px 10px;
+  }
+
+  .aai-crm-chips {
+    margin-top: 8px;
+  }
+
+  .aai-crm-loading {
+    padding: 16px;
+  }
+
+  .aai-crm-modal-footer {
+    padding: 10px 16px;
+  }
+}
+
+/* Narrow windows: keep the title, buttons and chips on one line each */
+@media (max-width: 560px) {
+  .aai-crm-modal-header h2 {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .aai-crm-store {
+    margin-right: 8px;
+  }
+
+  .aai-crm-store select {
+    font-size: 13px;
+    padding: 4px 24px 4px 8px;
+    max-width: 150px;
+  }
+
+  .aai-crm-modal-footer {
+    gap: 8px;
+  }
+
+  .aai-crm-modal-footer button {
+    padding: 8px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .aai-crm-chips {
+    gap: 6px;
+  }
+
+  .aai-crm-chip {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}
+
+/* Very short windows: show less of the original message (it still scrolls) */
+@media (max-height: 560px) {
+  .aai-crm-original-text {
+    max-height: 64px;
+  }
+
+  .aai-crm-enhanced-text {
+    min-height: 60px;
+  }
+
+  .aai-crm-section {
+    margin-bottom: 8px;
+  }
+}
+
+/* Very narrow: the dropdown speaks for itself */
+@media (max-width: 480px) {
+  .aai-crm-store span {
+    display: none;
+  }
+
+  .aai-crm-store {
+    margin-left: 8px;
+  }
 }
