@@ -4,7 +4,12 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.1.3] - Unreleased
+## [3.2.0] - Unreleased
+
+- **Feedback button** in the Enhance/Reply window (speech-bubble icon): users send a note, optionally with the message (PII-redacted, as sent to the AI) and the AI's suggestion. Mode, store, model and extension version are recorded
+- **Feedback tab** on the admin page for developers (admins with the new Developer flag): new/read/resolved status, filters, new-item count on the tab, who resolved what and when
+
+## [3.1.3] - 2026-11-10
 
 - **The Enhance/Reply window fits small windows**, like the VinSolutions SMS pop-up: the result text box shrinks instead of the whole window scrolling, so the tweak buttons (Shorter, More formal…) and Copy & Close are always visible. Tighter spacing on short and narrow screens
 - Server: the result is sent before usage is written to the database, so a slow or waking database never delays it; each request now records its timings (setup, first AI text, total) for troubleshooting

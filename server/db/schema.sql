@@ -98,3 +98,25 @@ ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS crm_name text;
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS setup_ms integer;
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS first_token_ms integer;
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS total_ms integer;
+
+-- Developers (admins with this flag) see the Feedback tab
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_developer boolean NOT NULL DEFAULT false;
+
+-- Feedback sent from the extension's Enhance/Reply window
+CREATE TABLE IF NOT EXISTS feedback (
+  id                 bigserial PRIMARY KEY,
+  user_id            integer REFERENCES users(id) ON DELETE SET NULL,
+  rooftop_name       text,                 -- store(s) the sender was working for, as names at the time
+  mode               text,                 -- 'enhance' | 'response'
+  model              text,
+  extension_version  text,
+  message            text NOT NULL,        -- the user's note
+  original_text      text,                 -- the selected text as sent to the AI (PII already redacted), if included
+  ai_text            text,                 -- the AI's suggestion shown at the time, if included
+  status             text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'resolved')),
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now(),
+  resolved_at        timestamptz,
+  resolved_by        integer REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback (status, created_at DESC);

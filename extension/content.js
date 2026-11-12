@@ -57,6 +57,13 @@ const RESPONSE_ICON_SVG = `
 </svg>
 `;
 
+const FEEDBACK_ICON_SVG = `
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  <path d="M8 9h8M8 13h5"/>
+</svg>
+`;
+
 // PII Detection Patterns
 const PII_PATTERNS = {
   phone: /(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
@@ -623,6 +630,7 @@ function createModal(mode = 'enhance') {
     <div class="aai-crm-modal-content" role="dialog" aria-modal="true" aria-labelledby="aai-crm-modal-title" tabindex="-1">
       <div class="aai-crm-modal-header">
         <h2 id="aai-crm-modal-title">${title}</h2>${storePickerHtml()}
+        <button type="button" class="aai-crm-feedback-btn" aria-label="Send feedback" title="Send feedback about this result">${FEEDBACK_ICON_SVG}</button>
         <button class="aai-crm-close-btn" aria-label="Close (Esc)" title="Close (Esc)">&times;</button>
       </div>
       <div class="aai-crm-modal-body">
@@ -652,6 +660,19 @@ function createModal(mode = 'enhance') {
           <label for="aai-crm-flair-input">Additional Context:</label>
           <input type="text" id="aai-crm-flair-input" class="aai-crm-flair-input" placeholder="Add specific instructions or context, then press Enter...">
           <button class="aai-crm-secondary-btn aai-crm-flair-submit">Regenerate with Context</button>
+        </div>
+        <div class="aai-crm-feedback-section" style="display: none;">
+          <label for="aai-crm-feedback-input">Feedback for the AAI team</label>
+          <textarea id="aai-crm-feedback-input" class="aai-crm-feedback-input" rows="3" maxlength="2000" placeholder="What was wrong, or what could be better?"></textarea>
+          <label class="aai-crm-feedback-include">
+            <input type="checkbox" class="aai-crm-feedback-context" checked>
+            Include this message and the AI's suggestion
+          </label>
+          <div class="aai-crm-feedback-error" role="alert" style="display: none;"></div>
+          <div class="aai-crm-feedback-actions">
+            <button type="button" class="aai-crm-primary-btn aai-crm-feedback-send">Send Feedback</button>
+            <button type="button" class="aai-crm-secondary-btn aai-crm-feedback-cancel">Cancel</button>
+          </div>
         </div>
       </div>
       <div class="aai-crm-modal-footer">
@@ -719,6 +740,11 @@ function createModal(mode = 'enhance') {
     });
   }
 
+  // Feedback
+  modal.querySelector('.aai-crm-feedback-btn').addEventListener('click', toggleFeedback);
+  modal.querySelector('.aai-crm-feedback-cancel').addEventListener('click', () => toggleFeedback(false));
+  modal.querySelector('.aai-crm-feedback-send').addEventListener('click', sendFeedback);
+
   // Version navigation
   modal.querySelector('.aai-crm-version-prev').addEventListener('click', () => showVersion(versionIndex - 1));
   modal.querySelector('.aai-crm-version-next').addEventListener('click', () => showVersion(versionIndex + 1));
@@ -735,6 +761,63 @@ function createModal(mode = 'enhance') {
 
   // Initial generation
   generateEnhancedText();
+}
+
+/**
+ * Show or hide the feedback form (pass true/false, or nothing to toggle)
+ */
+function toggleFeedback(show) {
+  const section = modal.querySelector('.aai-crm-feedback-section');
+  const visible = typeof show === 'boolean' ? show : section.style.display === 'none';
+  section.style.display = visible ? 'block' : 'none';
+  modal.classList.toggle('aai-crm-feedback-open', visible);
+  modal.querySelector('.aai-crm-feedback-btn').classList.toggle('active', visible);
+  modal.querySelector('.aai-crm-feedback-error').style.display = 'none';
+  if (visible) {
+    const input = modal.querySelector('.aai-crm-feedback-input');
+    section.scrollIntoView({ block: 'end' }); // Small windows: bring the Send button into view
+    input.focus({ preventScroll: true });
+  }
+}
+
+/**
+ * Send the feedback form to the AAI server (via the background worker)
+ */
+function sendFeedback() {
+  const input = modal.querySelector('.aai-crm-feedback-input');
+  const errorEl = modal.querySelector('.aai-crm-feedback-error');
+  const sendBtn = modal.querySelector('.aai-crm-feedback-send');
+  const message = input.value.trim();
+  if (!message) {
+    input.focus();
+    return;
+  }
+
+  const includeContext = modal.querySelector('.aai-crm-feedback-context').checked;
+  const payload = {
+    action: 'sendFeedback',
+    message,
+    mode: currentMode,
+    rooftopId: currentStoreId,
+    // The same redacted text the AI saw, never the raw selection
+    originalText: includeContext ? detectAndRedactPII(currentSelection).redactedText : '',
+    aiText: includeContext ? modal.querySelector('.aai-crm-enhanced-text').value : ''
+  };
+
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending...';
+  chrome.runtime.sendMessage(payload, (response) => {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send Feedback';
+    if (chrome.runtime.lastError || !response?.ok) {
+      errorEl.textContent = response?.error || 'Could not send feedback. Please try again.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    input.value = '';
+    toggleFeedback(false);
+    showToast('Thanks! Your feedback was sent.');
+  });
 }
 
 /**
@@ -988,6 +1071,14 @@ function handleModalKeydown(event) {
     } else {
       openModalEl.remove();
     }
+    return;
+  }
+
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && openModalEl === modal
+      && document.activeElement?.classList.contains('aai-crm-feedback-input')) {
+    event.preventDefault();
+    event.stopPropagation();
+    sendFeedback();
     return;
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "aai-crm-server",
-  "version": "3.1.3",
+  "version": "3.2.0",
   "private": true,
   "description": "Accounts, usage tracking and OpenAI relay for the AAI for CRM Chrome extension",
   "type": "module",

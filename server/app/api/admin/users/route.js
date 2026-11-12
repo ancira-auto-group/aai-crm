@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const GET = route(async (request) => {
   await requireUser(request, { admin: true });
   const users = await sql`
-    SELECT u.id, u.email, u.name, u.role, u.model, u.active,
+    SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.is_developer,
            u.must_change_password, u.created_at, u.last_active_at,
            (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked,
            coalesce((
@@ -26,7 +26,7 @@ export const GET = route(async (request) => {
 });
 
 /**
- * POST /api/admin/users { email, name, role, rooftopIds, model }
+ * POST /api/admin/users { email, name, role, rooftopIds, model, isDeveloper }
  * Returns a temporary password to hand to the user; they must change it on first sign-in.
  */
 export const POST = route(async (request) => {
@@ -42,8 +42,9 @@ export const POST = route(async (request) => {
 
   const tempPassword = generateTempPassword();
   const [user] = await sql`
-    INSERT INTO users (email, name, role, model, password_hash, must_change_password)
-    VALUES (${email}, ${name}, ${role}, ${model}, ${await hashPassword(tempPassword)}, true)
+    INSERT INTO users (email, name, role, model, is_developer, password_hash, must_change_password)
+    VALUES (${email}, ${name}, ${role}, ${model}, ${role === 'admin' && body.isDeveloper === true},
+            ${await hashPassword(tempPassword)}, true)
     ON CONFLICT (email) DO NOTHING
     RETURNING id, email`;
   if (!user) {

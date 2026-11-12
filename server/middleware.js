@@ -37,5 +37,5 @@ export function middleware(request) {
 
 export const config = {
   // Admin endpoints are used only by the admin page (same origin), so they get no CORS headers
-  matcher: ['/api/auth/:path*', '/api/me', '/api/generate']
+  matcher: ['/api/auth/:path*', '/api/me', '/api/generate', '/api/feedback']
 };

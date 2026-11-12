@@ -89,16 +89,17 @@ export function tokenFrom(request) {
  * Resolve the signed-in user for a request.
  * Options:
  *   admin: require role 'admin'
+ *   developer: require an admin with the developer flag (Feedback tab)
  *   allowPasswordChange: allow users who still have to replace a temporary password
  */
-export async function requireUser(request, { admin = false, allowPasswordChange = false } = {}) {
+export async function requireUser(request, { admin = false, developer = false, allowPasswordChange = false } = {}) {
   const token = tokenFrom(request);
   if (!token) {
     throw new HttpError(401, 'Please sign in', 'signed_out');
   }
 
   const [user] = await sql`
-    SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.must_change_password,
+    SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.must_change_password, u.is_developer,
            coalesce((
              SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active, 'crmName', r.crm_name) ORDER BY r.name)
              FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
@@ -121,8 +122,11 @@ export async function requireUser(request, { admin = false, allowPasswordChange 
   if (user.must_change_password && !allowPasswordChange) {
     throw new HttpError(403, 'Please set a new password in the extension settings.', 'password_change_required');
   }
-  if (admin && user.role !== 'admin') {
+  if ((admin || developer) && user.role !== 'admin') {
     throw new HttpError(403, 'Administrator access required');
+  }
+  if (developer && !user.is_developer) {
+    throw new HttpError(403, 'Developer access required');
   }
 
   return { ...user, token };
@@ -141,6 +145,7 @@ export function publicUser(user) {
     role: user.role,
     rooftops,
     rooftop: rooftops.length ? { id: rooftops[0].id, name: rooftops.map((r) => r.name).join(', ') } : null,
+    isDeveloper: user.role === 'admin' && !!user.is_developer,
     mustChangePassword: user.must_change_password
   };
 }

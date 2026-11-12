@@ -33,6 +33,7 @@ Open the admin page at [aai-crm.ancira.app/admin](https://aai-crm.ancira.app/adm
 | **Users** | Add users (they get a temporary password to change on first sign-in), assign each to one or more rooftops and an AI model, reset passwords, unlock accounts after too many failed sign-ins, disable or re-enable access. |
 | **Rooftops** | Add, rename, disable or re-enable rooftops. Disabling one blocks users who have no other active rooftop. |
 | **Prompts** | Edit the instructions the AI follows for Enhance and Reply. Changes apply to everyone within about a minute. The server adds a line naming the sender's rooftop(s), so a store directory in the prompt keyed by rooftop name (e.g. `AWC: Ancira-Winton Chevrolet, 6111 Bandera Rd…`) lets the AI use the right address and phone. See [docs/writing-prompts.md](docs/writing-prompts.md). |
+| **Feedback** | Developers only (admins with **Developer** ticked on the Users tab). Notes people send with the feedback button in the Enhance/Reply window, with who, when, store, and optionally the message and AI suggestion. Mark items read or resolved. |
 
 People at several rooftops get a **Current store** dropdown in the extension popup and settings page (also shown in the Enhance/Reply window). Their choice is remembered; the AI uses that store's details and the request counts fully toward it. Until they pick one, requests are split as described below.
 

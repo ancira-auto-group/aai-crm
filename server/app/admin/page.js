@@ -300,7 +300,7 @@ function UsageTab() {
 
 /* ---------- users ---------- */
 
-const EMPTY_USER = { email: '', name: '', role: 'user', rooftopIds: [], model: '' };
+const EMPTY_USER = { email: '', name: '', role: 'user', rooftopIds: [], model: '', isDeveloper: false };
 
 function UserForm({ initial, rooftops, models, onSubmit, onCancel, submitLabel, emailEditable }) {
   const [form, setForm] = useState(initial);
@@ -357,6 +357,12 @@ function UserForm({ initial, rooftops, models, onSubmit, onCancel, submitLabel, 
           </label>
         ))}
       </fieldset>
+      {form.role === 'admin' && (
+        <label className="check" style={{ marginTop: 10 }}>
+          <input type="checkbox" checked={!!form.isDeveloper} onChange={(e) => setForm({ ...form, isDeveloper: e.target.checked })} />
+          Developer (can see the Feedback tab)
+        </label>
+      )}
       {formError && <div className="notice error" role="alert" style={{ marginTop: 10 }}>{formError}</div>}
       <div className="row" style={{ marginTop: 12 }}>
         <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : submitLabel}</button>
@@ -459,7 +465,7 @@ function UsersTab({ me }) {
                   <tr key={u.id}><td colSpan={5}>
                     <div className="muted" style={{ marginBottom: 8 }}>{u.email}</div>
                     <UserForm
-                      initial={{ name: u.name, role: u.role, rooftopIds: u.rooftops.map((r) => r.id), model: u.model ?? '' }}
+                      initial={{ name: u.name, role: u.role, rooftopIds: u.rooftops.map((r) => r.id), model: u.model ?? '', isDeveloper: !!u.is_developer }}
                       rooftops={rooftops} models={models} submitLabel="Save"
                       onSubmit={(form) => update(u.id, form)} onCancel={() => setEditing(null)} />
                   </td></tr>
@@ -468,6 +474,7 @@ function UsersTab({ me }) {
                     <td>
                       {u.name || u.email}{' '}
                       {u.role === 'admin' && <span className="badge admin">Admin</span>}{' '}
+                      {u.role === 'admin' && u.is_developer && <span className="badge admin">Developer</span>}{' '}
                       {!u.active && <span className="badge">Disabled</span>}{' '}
                       {u.locked && <span className="badge warn">Locked</span>}{' '}
                       {u.must_change_password && u.active && <span className="badge warn">Temp password</span>}
@@ -672,6 +679,88 @@ function PromptsTab() {
   return prompts.map((p) => <PromptEditor key={p.mode} prompt={p} onSaved={load} />);
 }
 
+/* ---------- feedback (developers only) ---------- */
+
+const STATUS_LABEL = { new: 'New', read: 'Read', resolved: 'Resolved' };
+
+function FeedbackTab({ onCounts }) {
+  const [filter, setFilter] = useState('open');
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState(null);
+
+  const load = useCallback(() => api(`/api/admin/feedback?status=${filter}`)
+    .then((d) => { setData(d); onCounts?.(d.counts); })
+    .catch((err) => setError(err.message)), [filter, onCounts]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setStatus = async (item, status) => {
+    try {
+      await api(`/api/admin/feedback/${item.id}`, { method: 'PATCH', body: { status } });
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const open = (item) => {
+    setExpanded(expanded === item.id ? null : item.id);
+    if (item.status === 'new') {
+      setStatus(item, 'read');
+    }
+  };
+
+  return (
+    <>
+      {error && <div className="notice error">{error} <button className="link" onClick={() => setError('')}>Dismiss</button></div>}
+      <div className="card">
+        <div className="row" style={{ alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Feedback</h2>
+          {data && <span className="muted">{data.counts.new} new · {data.counts.read} read · {data.counts.resolved} resolved</span>}
+          <span className="spacer" />
+          {[['open', 'Open'], ['resolved', 'Resolved'], ['all', 'All']].map(([id, label]) => (
+            <button key={id} className={`btn small ${filter === id ? 'primary' : ''}`} onClick={() => setFilter(id)}>{label}</button>
+          ))}
+        </div>
+        <p className="muted" style={{ marginBottom: 0 }}>Sent from the feedback button in the extension's Enhance/Reply window. Opening a new item marks it read.</p>
+      </div>
+
+      {!data && !error && <p className="muted">Loading…</p>}
+      {data && data.items.length === 0 && <div className="card muted">Nothing here.</div>}
+      {data && data.items.map((f) => (
+        <div key={f.id} className="card" style={{ borderLeft: f.status === 'new' ? '4px solid var(--accent)' : undefined }}>
+          <div className="row" style={{ alignItems: 'flex-start' }}>
+            <div style={{ flex: '1 1 300px', cursor: 'pointer' }} onClick={() => open(f)}>
+              <div style={{ fontWeight: f.status === 'new' ? 700 : 400, whiteSpace: 'pre-wrap' }}>{f.message}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                {f.user_name || f.user_email}{f.user_name && ` (${f.user_email})`} · {when(f.created_at)}
+                {f.rooftop_name && ` · ${f.rooftop_name}`}{f.mode && ` · ${f.mode === 'enhance' ? 'Enhance' : 'Reply'}`}
+                {f.extension_version && ` · v${f.extension_version}`}
+              </div>
+            </div>
+            <span className={`badge ${f.status === 'new' ? 'admin' : f.status === 'resolved' ? '' : 'warn'}`}>{STATUS_LABEL[f.status]}</span>
+            <div className="actions">
+              {(f.original_text || f.ai_text) && <button className="btn small" onClick={() => open(f)}>{expanded === f.id ? 'Hide' : 'Details'}</button>}
+              {f.status === 'new' && <button className="btn small" onClick={() => setStatus(f, 'read')}>Mark read</button>}
+              {f.status !== 'resolved'
+                ? <button className="btn small primary" onClick={() => setStatus(f, 'resolved')}>Resolve</button>
+                : <button className="btn small" onClick={() => setStatus(f, 'read')}>Reopen</button>}
+            </div>
+          </div>
+          {expanded === f.id && (
+            <div style={{ marginTop: 12 }}>
+              {f.original_text && <><label>Their text (as sent to the AI)</label><div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{f.original_text}</div></>}
+              {f.ai_text && <><label>AI suggestion at the time</label><div className="notice" style={{ whiteSpace: 'pre-wrap' }}>{f.ai_text}</div></>}
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>Model: {f.model || 'unknown'}{f.resolved_at && ` · Resolved ${when(f.resolved_at)}${f.resolved_by ? ` by ${f.resolved_by}` : ''}`}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /* ---------- page ---------- */
 
 const TABS = [
@@ -684,6 +773,7 @@ const TABS = [
 export default function AdminPage() {
   const [state, setState] = useState({ status: 'loading' });
   const [tab, setTab] = useState('usage');
+  const [feedbackCounts, setFeedbackCounts] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -695,6 +785,14 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Show the number of new feedback items on the tab without opening it
+  const isDeveloper = state.me?.isDeveloper;
+  useEffect(() => {
+    if (isDeveloper) {
+      api('/api/admin/feedback?status=open').then((d) => setFeedbackCounts(d.counts)).catch(() => {});
+    }
+  }, [isDeveloper]);
 
   const signOut = async () => {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
@@ -727,7 +825,9 @@ export default function AdminPage() {
     );
   }
 
-  const Active = TABS.find((t) => t.id === tab).Component;
+  // Developers also get the Feedback tab, with a count of new items
+  const tabs = me.isDeveloper ? [...TABS, { id: 'feedback', label: 'Feedback', Component: FeedbackTab }] : TABS;
+  const Active = (tabs.find((t) => t.id === tab) || tabs[0]).Component;
   return (
     <main className="shell">
       <div className="topbar">
@@ -738,11 +838,13 @@ export default function AdminPage() {
         </div>
       </div>
       <nav className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>{t.label}</button>
+        {tabs.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+            {t.label}{t.id === 'feedback' && feedbackCounts?.new > 0 && <span className="badge admin" style={{ marginLeft: 6 }}>{feedbackCounts.new}</span>}
+          </button>
         ))}
       </nav>
-      <Active me={me} />
+      <Active me={me} onCounts={setFeedbackCounts} />
     </main>
   );
 }

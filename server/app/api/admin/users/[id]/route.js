@@ -7,7 +7,8 @@ import { checkUserFields } from '../validate.js';
 export const runtime = 'nodejs';
 
 /**
- * PATCH /api/admin/users/:id { name?, role?, rooftopIds?, model?, active?, unlock? }
+ * PATCH /api/admin/users/:id { name?, role?, rooftopIds?, model?, active?, unlock?, isDeveloper? }
+ * Only admins can be developers (see the Feedback tab); demoting an admin clears the flag.
  * Leaving rooftopIds out keeps the current assignments.
  * Users are disabled rather than deleted so their usage history stays attributed.
  * Disabling a user signs them out everywhere.
@@ -31,17 +32,19 @@ export const PATCH = route(async (request, { params }) => {
     rooftopIds: currentRooftops.map((r) => r.id)
   });
 
+  const isDeveloper = role === 'admin' && (typeof body.isDeveloper === 'boolean' ? body.isDeveloper : existing.is_developer);
+
   if (id === admin.id && (!active || role !== 'admin')) {
     throw new HttpError(400, 'You can\'t disable or demote your own account');
   }
 
   const [user] = await sql`
     UPDATE users SET
-      name = ${name}, role = ${role}, model = ${model}, active = ${active},
+      name = ${name}, role = ${role}, model = ${model}, active = ${active}, is_developer = ${isDeveloper},
       failed_logins = CASE WHEN ${body.unlock === true} THEN 0 ELSE failed_logins END,
       locked_until = CASE WHEN ${body.unlock === true} THEN NULL ELSE locked_until END
     WHERE id = ${id}
-    RETURNING id, email, name, role, model, active`;
+    RETURNING id, email, name, role, model, active, is_developer`;
 
   if (rooftopIds !== undefined) {
     await setUserRooftops(id, rooftopIds);
