@@ -433,6 +433,103 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+/* Feedback */
+/* While writing feedback, hide the result tweaks so the form fits in small windows */
+.aai-crm-feedback-open .aai-crm-chips,
+.aai-crm-feedback-open .aai-crm-counter {
+  display: none !important;
+}
+
+/* With the form open, keep room for the result's label and smallest text box; the body scrolls if needed */
+.aai-crm-feedback-open .aai-crm-result-section {
+  min-height: 96px;
+}
+
+
+.aai-crm-feedback-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 5px;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aai-crm-feedback-btn:hover,
+.aai-crm-feedback-btn.active {
+  background: #f3f4f6;
+  color: #667eea;
+  border-color: #e5e7eb;
+}
+
+.aai-crm-modal-body > .aai-crm-feedback-section {
+  flex: none;
+}
+
+.aai-crm-feedback-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.aai-crm-feedback-section > label:first-child {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.aai-crm-feedback-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+  font-family: inherit;
+  resize: none;
+}
+
+.aai-crm-feedback-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.aai-crm-feedback-include {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.aai-crm-feedback-error {
+  color: #b91c1c;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.aai-crm-feedback-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-height: 560px) {
+  .aai-crm-feedback-input {
+    height: 52px;
+  }
+}
+
 /* Modal Footer */
 .aai-crm-modal-footer {
   padding: 16px 24px;

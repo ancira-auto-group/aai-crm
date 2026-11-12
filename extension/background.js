@@ -181,9 +181,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 // The only actions content scripts (running inside CRM pages) may trigger
-const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore']);
+const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore', 'sendFeedback']);
 
 const HANDLERS = {
+  sendFeedback: (request) => callServer('/api/feedback', {
+    method: 'POST',
+    body: {
+      message: String(request.message || '').slice(0, 2000),
+      mode: request.mode,
+      rooftopId: Number.isInteger(request.rooftopId) ? request.rooftopId : null,
+      originalText: String(request.originalText || '').slice(0, 8000),
+      aiText: String(request.aiText || '').slice(0, 8000)
+    }
+  }),
   getStatus: () => getStatus(),
   getAccount: () => getAccount(),
   signIn: (request) => signIn(request.email, request.password),
