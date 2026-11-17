@@ -120,3 +120,26 @@ CREATE TABLE IF NOT EXISTS feedback (
   resolved_by        integer REFERENCES users(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback (status, created_at DESC);
+
+-- Store details the AI uses for the sender's dealership (instead of a hand-kept list in the prompts)
+ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS address text;
+ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE rooftops ADD COLUMN IF NOT EXISTS hours text;
+
+-- Every saved version of each prompt, for history and one-click restore
+CREATE TABLE IF NOT EXISTS prompt_versions (
+  id          bigserial PRIMARY KEY,
+  mode        text NOT NULL CHECK (mode IN ('enhance', 'response')),
+  content     text NOT NULL,
+  note        text,                                   -- e.g. "Restored from Nov 6, 2026 10:05"
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  created_by  integer REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS prompt_versions_mode_idx ON prompt_versions (mode, created_at DESC);
+
+-- Seed history with the current prompts the first time this runs
+INSERT INTO prompt_versions (mode, content, note, created_at, created_by)
+  SELECT p.mode, p.content, 'Version in use when history started', p.updated_at, p.updated_by
+  FROM prompts p
+  WHERE NOT EXISTS (SELECT 1 FROM prompt_versions v WHERE v.mode = p.mode);

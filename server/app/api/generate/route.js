@@ -15,19 +15,31 @@ export const maxDuration = 60;
 const MAX_TEXT_CHARS = 8000;
 const MAX_INSTRUCTION_CHARS = 1000;
 
+/** "AWC: Ancira-Winton Chevrolet, 6111 Bandera Rd..., phone ..., hours ..." from the Rooftops tab */
+function storeDetails(r) {
+  const fullName = r.fullName && r.fullName !== r.name ? r.fullName : null;
+  const parts = [fullName, r.address, r.phone && `phone ${r.phone}`, r.hours && `hours: ${r.hours}`].filter(Boolean);
+  return parts.length ? `${r.name}: ${parts.join(', ')}` : r.name;
+}
+
 /**
- * Tell the model which dealership the sender works at, so it uses the right name, address and phone.
- * Rooftop names are the store abbreviations the prompts use (NIS, AWC, ...), so the prompt's
- * dealership list can be looked up by them.
+ * Tell the model which dealership the sender works at, with that store's details from the Rooftops tab,
+ * so it uses the right name, address, phone and hours. Rooftop names are the store abbreviations (NIS, AWC...).
  */
 function rooftopContext(rooftops) {
-  const active = (rooftops || []).filter((r) => r.active).map((r) => r.name);
+  const active = (rooftops || []).filter((r) => r.active);
   const noDetails = 'do not add any dealership name, address or phone number that is not already in the text';
   if (active.length === 1) {
-    return `# Sender's dealership\nThe person sending this message works at ${active[0]}. When the message needs a dealership name, address, phone number or directions, use ${active[0]}'s details only. Never use another dealership's details.`;
+    const r = active[0];
+    return `# Sender's dealership\nThe person sending this message works at ${r.name}${r.fullName && r.fullName !== r.name ? ` (${r.fullName})` : ''}.\n` +
+      `Store details: ${storeDetails(r)}\n` +
+      'When the message needs a dealership name, address, phone number, hours or directions, use these details only. ' +
+      'Never use another dealership\'s details, and don\'t make up details that aren\'t listed.';
   }
   if (active.length > 1) {
-    return `# Sender's dealership\nThe person sending this message works at these dealerships: ${active.join(', ')}. When the message needs dealership details, use the one the message is about. If it isn't clear which one, ${noDetails}.`;
+    return '# Sender\'s dealership\nThe person sending this message works at these dealerships:\n' +
+      active.map((r) => `- ${storeDetails(r)}`).join('\n') +
+      `\nWhen the message needs dealership details, use the one the message is about. If it isn't clear which one, ${noDetails}.`;
   }
   return `# Sender's dealership\nThe sender's dealership is unknown, so ${noDetails}.`;
 }

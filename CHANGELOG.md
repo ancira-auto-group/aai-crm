@@ -6,6 +6,9 @@ The extension and the server share one version number; see "Versioning" in the R
 
 ## [3.2.0] - Unreleased
 
+- **Store details on the Rooftops tab**: full name, address, phone and hours per store; the AI gets the sender's store details automatically, so the prompts no longer need a hand-kept store list
+- **Prompt history**: every save of the Enhance and Reply prompts is kept, with who/when; view any version and restore it in one click
+- **Adoption view** on the Users tab: requests in the last 7 and 30 days per person, "Never used" / "Idle 7+ days" badges, an Inactive filter, and how many people used AAI this week
 - Admin site favicon matching the extension icon (browser tab, Apple home-screen icon, and `/favicon.ico`)
 - **Feedback button** in the Enhance/Reply window (speech-bubble icon): users send a note, optionally with the message (PII-redacted, as sent to the AI) and the AI's suggestion. Mode, store, model and extension version are recorded
 - **Feedback tab** on the admin page for developers (admins with the new Developer flag): new/read/resolved status, filters, new-item count on the tab, who resolved what and when

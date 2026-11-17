@@ -101,7 +101,8 @@ export async function requireUser(request, { admin = false, developer = false, a
   const [user] = await sql`
     SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.must_change_password, u.is_developer,
            coalesce((
-             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active, 'crmName', r.crm_name) ORDER BY r.name)
+             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active, 'fullName', r.full_name,
+                                       'address', r.address, 'phone', r.phone, 'hours', r.hours) ORDER BY r.name)
              FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
              WHERE ur.user_id = u.id
            ), '[]'::json) AS rooftops
@@ -137,7 +138,7 @@ export async function requireUser(request, { admin = false, developer = false, a
  * `rooftop` (one object, names joined) is kept for 3.0.0 extensions, which show a single rooftop.
  */
 export function publicUser(user) {
-  const rooftops = (user.rooftops || []).map(({ id, name, active, crmName }) => ({ id, name, active, crmName: crmName || null }));
+  const rooftops = (user.rooftops || []).map(({ id, name, active, fullName }) => ({ id, name, active, fullName: fullName || null }));
   return {
     id: user.id,
     email: user.email,

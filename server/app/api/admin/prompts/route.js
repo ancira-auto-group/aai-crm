@@ -22,7 +22,8 @@ export const GET = route(async (request) => {
 });
 
 /**
- * PUT /api/admin/prompts { mode, content } or { mode, importUrl }
+ * PUT /api/admin/prompts { mode, content, note? } or { mode, importUrl }
+ * Every save is also kept in prompt_versions (see GET /api/admin/prompts/history).
  * Changes apply to every user within about a minute.
  */
 export const PUT = route(async (request) => {
@@ -65,6 +66,10 @@ export const PUT = route(async (request) => {
     VALUES (${body.mode}, ${content}, now(), ${admin.id})
     ON CONFLICT (mode) DO UPDATE SET content = EXCLUDED.content, updated_at = now(), updated_by = EXCLUDED.updated_by
     RETURNING mode, content, updated_at`;
+  const note = typeof body.note === 'string' ? body.note.slice(0, 200) : (body.importUrl ? `Imported from ${body.importUrl}`.slice(0, 200) : null);
+  await sql`
+    INSERT INTO prompt_versions (mode, content, note, created_by)
+    VALUES (${body.mode}, ${content}, ${note}, ${admin.id})`;
   clearPromptCache();
 
   return json({ prompt: { ...prompt, updated_by: admin.email } });
