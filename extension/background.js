@@ -181,9 +181,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 // The only actions content scripts (running inside CRM pages) may trigger
-const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore', 'sendFeedback']);
+const CONTENT_SCRIPT_ACTIONS = new Set(['getStatus', 'openOptions', 'setLastStore', 'sendFeedback', 'sendOutcome']);
 
 const HANDLERS = {
+  // What happened to a result (used / discarded / edited) and its thumbs rating; best effort
+  sendOutcome: (request) => callServer('/api/outcome', {
+    method: 'POST',
+    body: {
+      requestId: String(request.requestId || ''),
+      outcome: request.outcome,
+      edited: request.edited,
+      rating: request.rating
+    }
+  }),
   sendFeedback: (request) => callServer('/api/feedback', {
     method: 'POST',
     body: {
@@ -271,8 +281,8 @@ chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener(async (request) => {
     try {
-      const text = await streamGeneration(request, controller, (delta) => post({ type: 'delta', text: delta }));
-      post({ type: 'done', text });
+      const { text, requestId } = await streamGeneration(request, controller, (delta) => post({ type: 'delta', text: delta }));
+      post({ type: 'done', text, requestId });
     } catch (error) {
       if (disconnected) {
         return; // Cancelled by the user, nobody to report to
@@ -321,7 +331,8 @@ async function streamGeneration(request, controller, onDelta) {
         mode: request.mode,
         text: request.text,
         additionalContext: request.additionalContext || '',
-        rooftopId: Number.isInteger(request.rooftopId) ? request.rooftopId : null
+        rooftopId: Number.isInteger(request.rooftopId) ? request.rooftopId : null,
+        variant: typeof request.variant === 'string' ? request.variant.slice(0, 40) : ''
       },
       signal: controller.signal,
       stream: true
@@ -354,7 +365,7 @@ async function streamGeneration(request, controller, onDelta) {
           if (message.truncated) {
             console.warn('AAI CRM Extension: Response hit the length limit and may be cut off');
           }
-          return message.text;
+          return { text: message.text, requestId: message.requestId || null };
         } else if (message.type === 'error') {
           throw new ServerError(message.error, { code: message.code });
         }

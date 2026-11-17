@@ -286,6 +286,37 @@
   margin-bottom: 8px;
 }
 
+/* Thumbs up/down for the result on screen */
+.aai-crm-rating {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.aai-crm-rate-btn {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.aai-crm-rate-btn:hover {
+  opacity: 1;
+  filter: none;
+}
+
+.aai-crm-rate-btn.active {
+  filter: none;
+  opacity: 1;
+  background: #eef2ff;
+  border-color: #667eea;
+}
+
 .aai-crm-section .aai-crm-result-header label {
   margin-bottom: 0;
 }

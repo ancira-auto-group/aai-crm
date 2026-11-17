@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { after } from 'next/server';
 import { requireUser } from '../../../lib/auth.js';
 import { sql } from '../../../lib/db.js';
@@ -66,6 +67,7 @@ function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
  */
 export const POST = route(async (request) => {
   const startedAt = Date.now();
+  const requestId = crypto.randomUUID(); // Sent with the result so the extension can report what happened to it
   checkExtensionVersion(request);
   const user = await requireUser(request);
   const body = await readJson(request);
@@ -76,6 +78,7 @@ export const POST = route(async (request) => {
   }
   const text = str(body.text, { field: 'Text', max: MAX_TEXT_CHARS, required: true });
   const instructions = str(body.additionalContext, { field: 'Instructions', max: MAX_INSTRUCTION_CHARS });
+  const variant = str(body.variant, { field: 'Variant', max: 40 }) || null;
 
   // A multi-store user may say which store this message is for. Only their own active rooftops count;
   // anything else falls back to all of their active rooftops.
@@ -97,10 +100,10 @@ export const POST = route(async (request) => {
     try {
       const [event] = await sql`
         INSERT INTO usage_events (user_id, mode, model, input_tokens, output_tokens, cost_usd, status,
-                                  setup_ms, first_token_ms, total_ms)
+                                  setup_ms, first_token_ms, total_ms, request_id, variant)
         VALUES (${user.id}, ${mode}, ${model}, ${record.inputTokens}, ${record.outputTokens},
                 ${estimateCost(model, record.inputTokens, record.outputTokens)}, ${record.status},
-                ${setupMs}, ${record.firstTokenMs}, ${record.totalMs})
+                ${setupMs}, ${record.firstTokenMs}, ${record.totalMs}, ${requestId}, ${variant})
         RETURNING id`;
       await attributeUsage(event.id, rooftops);
       await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
@@ -151,7 +154,7 @@ export const POST = route(async (request) => {
           send({ type: 'error', error: failure.message });
         }
       } else {
-        send({ type: 'done', text: result.text.trim(), truncated: result.truncated });
+        send({ type: 'done', text: result.text.trim(), truncated: result.truncated, requestId });
       }
 
       try {

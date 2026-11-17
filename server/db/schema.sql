@@ -143,3 +143,19 @@ INSERT INTO prompt_versions (mode, content, note, created_at, created_by)
   SELECT p.mode, p.content, 'Version in use when history started', p.updated_at, p.updated_by
   FROM prompts p
   WHERE NOT EXISTS (SELECT 1 FROM prompt_versions v WHERE v.mode = p.mode);
+
+-- Which result a request produced (sent to the extension) and which button asked for it
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS request_id uuid;
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS variant text;   -- 'initial', 'Shorter', 'Mix it up', 'Store change'...
+CREATE UNIQUE INDEX IF NOT EXISTS usage_events_request_idx ON usage_events (request_id);
+
+-- What happened to each result, reported by the extension. Kept apart from usage_events so it can
+-- arrive before the usage row is written.
+CREATE TABLE IF NOT EXISTS result_outcomes (
+  request_id  uuid PRIMARY KEY,
+  user_id     integer REFERENCES users(id) ON DELETE SET NULL,
+  outcome     text CHECK (outcome IN ('used', 'discarded')),   -- Copy & Close, or closed without using
+  edited      boolean,                                         -- changed in the box before Copy & Close
+  rating      smallint CHECK (rating IN (-1, 1)),              -- thumbs down / up (NULL = none)
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);

@@ -37,6 +37,7 @@ let restoreFocusEl = null; // Element to refocus if the modal is dismissed
 let generationPort = null; // Open streaming connection to the background worker, if any
 let versions = []; // Generated results for this modal: [{ text, label }]
 let versionIndex = -1;
+let outcomeReported = false; // Whether this modal's result was already reported as used/discarded
 let shortcuts = { enhance: '', response: '' };
 let storeChoices = []; // Active stores for a multi-store user ([] for single-store users): [{ id, name }]
 let currentStoreId = null; // Store chosen for this modal, or null for "not sure" / single-store users
@@ -622,6 +623,7 @@ function createModal(mode = 'enhance') {
   const isMac = /Mac/i.test(navigator.platform);
 
   versions = [];
+  outcomeReported = false;
   versionIndex = -1;
 
   modal = document.createElement('div');
@@ -641,6 +643,10 @@ function createModal(mode = 'enhance') {
         <div class="aai-crm-section aai-crm-result-section">
           <div class="aai-crm-result-header">
             <label for="aai-crm-result">${resultLabel}</label>
+            <div class="aai-crm-rating" role="group" aria-label="Rate this result" style="display: none;">
+              <button type="button" class="aai-crm-rate-btn" data-rating="1" aria-label="Good result" aria-pressed="false" title="Good result">&#128077;</button>
+              <button type="button" class="aai-crm-rate-btn" data-rating="-1" aria-label="Bad result" aria-pressed="false" title="Bad result">&#128078;</button>
+            </div>
             <div class="aai-crm-version-nav" style="display: none;">
               <button type="button" class="aai-crm-version-btn aai-crm-version-prev" aria-label="Previous version">&#8249;</button>
               <span class="aai-crm-version-label" aria-live="polite"></span>
@@ -698,7 +704,7 @@ function createModal(mode = 'enhance') {
   const flairInput = modal.querySelector('.aai-crm-flair-input');
 
   modal.querySelector('#aai-crm-copy-close').addEventListener('click', insertAndClose);
-  modal.querySelector('#aai-crm-mix-it-up').addEventListener('click', () => generateEnhancedText('', 'Mixed up'));
+  modal.querySelector('#aai-crm-mix-it-up').addEventListener('click', () => generateEnhancedText('', 'Mixed up', 'Mix it up'));
   modal.querySelector('#aai-crm-add-flair').addEventListener('click', () => {
     flairSection.style.display = 'block';
     flairInput.focus();
@@ -707,7 +713,7 @@ function createModal(mode = 'enhance') {
   const submitFlair = () => {
     const flair = flairInput.value.trim();
     if (flair) {
-      generateEnhancedText(flair, 'Custom');
+      generateEnhancedText(flair, 'Custom', 'Add some flair');
     }
   };
   modal.querySelector('.aai-crm-flair-submit').addEventListener('click', submitFlair);
@@ -736,9 +742,14 @@ function createModal(mode = 'enhance') {
       currentStoreId = storeSelect.value ? Number(storeSelect.value) : null;
       chrome.runtime.sendMessage({ action: 'setLastStore', rooftopId: currentStoreId });
       const store = storeChoices.find((s) => s.id === currentStoreId);
-      generateEnhancedText('', store ? store.name : 'Any store');
+      generateEnhancedText('', store ? store.name : 'Any store', 'Store change');
     });
   }
+
+  // Thumbs up/down for the result on screen
+  modal.querySelectorAll('.aai-crm-rate-btn').forEach((btn) => {
+    btn.addEventListener('click', () => rateCurrentVersion(Number(btn.dataset.rating)));
+  });
 
   // Feedback
   modal.querySelector('.aai-crm-feedback-btn').addEventListener('click', toggleFeedback);
@@ -869,6 +880,44 @@ function showVersion(index) {
   setResultControlsVisible(true);
   updateVersionNav();
   updateCounter();
+  updateRatingButtons();
+}
+
+/**
+ * Report what happened to a result (outcome, edited, rating) to the server; best effort
+ */
+function sendOutcome(version, fields) {
+  if (!version?.requestId) {
+    return;
+  }
+  chrome.runtime.sendMessage({ action: 'sendOutcome', requestId: version.requestId, ...fields }, () => void chrome.runtime.lastError);
+}
+
+/**
+ * Thumbs up (1) / down (-1) for the result on screen; clicking the same thumb again clears it
+ */
+function rateCurrentVersion(rating) {
+  const version = versions[versionIndex];
+  if (!version) {
+    return;
+  }
+  version.rating = version.rating === rating ? 0 : rating;
+  sendOutcome(version, { rating: version.rating });
+  updateRatingButtons();
+}
+
+function updateRatingButtons() {
+  const group = modal?.querySelector('.aai-crm-rating');
+  if (!group) {
+    return;
+  }
+  const version = versions[versionIndex];
+  group.style.display = version?.requestId ? 'flex' : 'none';
+  group.querySelectorAll('.aai-crm-rate-btn').forEach((btn) => {
+    const pressed = !!version && version.rating === Number(btn.dataset.rating);
+    btn.classList.toggle('active', pressed);
+    btn.setAttribute('aria-pressed', String(pressed));
+  });
 }
 
 /**
@@ -925,7 +974,7 @@ function updateCounter() {
  * @param {string} additionalContext - Extra instructions for the model
  * @param {string} label - Short name for the version (e.g. "Shorter")
  */
-function generateEnhancedText(additionalContext = '', label = '') {
+function generateEnhancedText(additionalContext = '', label = '', variant = '') {
   const loadingEl = modal.querySelector('.aai-crm-loading');
   const textareaEl = modal.querySelector('.aai-crm-enhanced-text');
   const errorEl = modal.querySelector('.aai-crm-error');
@@ -969,7 +1018,7 @@ function generateEnhancedText(additionalContext = '', label = '') {
     retryBtn.style.marginTop = '10px';
     retryBtn.addEventListener('click', () => {
       errorEl.textContent = '';
-      generateEnhancedText(additionalContext, label);
+      generateEnhancedText(additionalContext, label, variant);
     });
     errorEl.appendChild(retryBtn);
 
@@ -1009,7 +1058,13 @@ function generateEnhancedText(additionalContext = '', label = '') {
       generationPort = null;
       port.disconnect();
 
-      versions.push({ text: message.text, label: versions.length === 0 ? 'Original' : label });
+      versions.push({
+        text: message.text,
+        aiText: message.text, // What the AI wrote, to tell whether the user edited it
+        label: versions.length === 0 ? 'Original' : label,
+        requestId: message.requestId || null,
+        rating: 0
+      });
       showVersion(versions.length - 1);
       textareaEl.focus();
 
@@ -1039,7 +1094,9 @@ function generateEnhancedText(additionalContext = '', label = '') {
     mode: currentMode,
     text: redactedText,
     additionalContext: additionalContext,
-    rooftopId: currentStoreId
+    rooftopId: currentStoreId,
+    // Which button produced this result, for the Usage tab ("initial", "Shorter", "Mix it up"...)
+    variant: variant || (versions.length === 0 ? 'initial' : label)
   });
 }
 
@@ -1239,6 +1296,12 @@ async function insertAndClose() {
     return;
   }
 
+  const version = versions[versionIndex];
+  if (version && !outcomeReported) {
+    outcomeReported = true;
+    sendOutcome(version, { outcome: 'used', edited: text.trim() !== (version.aiText || '').trim() });
+  }
+
   const target = resolveInsertTarget();
 
   let copied = false;
@@ -1274,6 +1337,11 @@ async function insertAndClose() {
  */
 function closeModal({ restoreFocus = true } = {}) {
   cancelGeneration();
+  // Closed without using the result: count the result on screen as discarded
+  if (modal && !outcomeReported && versions[versionIndex]) {
+    sendOutcome(versions[versionIndex], { outcome: 'discarded' });
+  }
+  outcomeReported = false;
   if (modal) {
     modal.remove();
     modal = null;
