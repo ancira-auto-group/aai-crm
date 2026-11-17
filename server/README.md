@@ -53,6 +53,20 @@ npm run dev
 
 Then point a development copy of the extension at `http://localhost:3000` (extension settings → **Advanced** → **Server URL**).
 
+## Tests
+
+`test/api.test.mjs` runs the API end to end against a built server, a throwaway Postgres database and a mock OpenAI (`test/mock-openai.mjs`). CI runs it on every pull request (the `api-tests` job). To run it locally:
+
+```bash
+export DATABASE_URL='postgresql://…/aai_test' DATABASE_DRIVER=pg OPENAI_API_KEY=sk-test \
+  OPENAI_BASE_URL=http://127.0.0.1:4010/v1 MIN_EXTENSION_VERSION=3.0.0
+npm run build && npm run migrate
+node test/mock-openai.mjs & npx next start -p 3000 &
+TEST_DATABASE=1 npm test
+```
+
+The tests empty every table first, so they refuse to run without `TEST_DATABASE=1`. Never point them at production.
+
 ## API
 
 All responses are JSON unless noted. Errors look like `{ "error": "message", "code": "optional_code" }`.

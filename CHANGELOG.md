@@ -6,6 +6,7 @@ The extension and the server share one version number; see "Versioning" in the R
 
 ## [3.3.0] - Unreleased
 
+- Automated API tests (sign-in, roles, store details, multi-store attribution, outcomes, feedback, prompt history, version gate) run in CI on every pull request
 - **Thumbs up / down** on each result in the Enhance/Reply window
 - **Result tracking**: each result reports whether it was used (Copy & Close, and whether it was edited first) or closed without using, and which button produced it (first result, Shorter, Mix It Up, Add Some Flair, store change...)
 - Usage tab: "Results used" rate and 👍/👎 overall, per rooftop and per user, plus a **Results by button** table showing how each tweak performs
