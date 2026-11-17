@@ -6,6 +6,7 @@ The extension and the server share one version number; see "Versioning" in the R
 
 ## [3.2.0] - Unreleased
 
+- Admin site favicon matching the extension icon (browser tab, Apple home-screen icon, and `/favicon.ico`)
 - **Feedback button** in the Enhance/Reply window (speech-bubble icon): users send a note, optionally with the message (PII-redacted, as sent to the AI) and the AI's suggestion. Mode, store, model and extension version are recorded
 - **Feedback tab** on the admin page for developers (admins with the new Developer flag): new/read/resolved status, filters, new-item count on the tab, who resolved what and when
 
