@@ -30,14 +30,20 @@ export async function usageReport({ from, to }) {
   const tz = REPORT_TIMEZONE;
 
   const [totals] = await sql`
-    SELECT count(*) FILTER (WHERE status = 'ok')::int AS requests,
-           count(*) FILTER (WHERE status <> 'ok')::int AS failed,
-           coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
-           coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
-           coalesce(sum(cost_usd), 0)::float AS cost_usd,
-           count(DISTINCT user_id)::int AS active_users
-    FROM usage_events
-    WHERE (created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date`;
+    SELECT count(*) FILTER (WHERE e.status = 'ok')::int AS requests,
+           count(*) FILTER (WHERE e.status <> 'ok')::int AS failed,
+           coalesce(sum(e.input_tokens), 0)::bigint AS input_tokens,
+           coalesce(sum(e.output_tokens), 0)::bigint AS output_tokens,
+           coalesce(sum(e.cost_usd), 0)::float AS cost_usd,
+           count(DISTINCT e.user_id)::int AS active_users,
+           count(o.request_id) FILTER (WHERE o.outcome = 'used')::int AS used,
+           count(o.request_id) FILTER (WHERE o.outcome = 'used' AND o.edited)::int AS edited,
+           count(o.request_id) FILTER (WHERE o.outcome = 'discarded')::int AS discarded,
+           count(o.request_id) FILTER (WHERE o.rating = 1)::int AS thumbs_up,
+           count(o.request_id) FILTER (WHERE o.rating = -1)::int AS thumbs_down
+    FROM usage_events e
+    LEFT JOIN result_outcomes o ON o.request_id = e.request_id
+    WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date`;
 
   // Requests from users with several rooftops are split evenly (usage_event_rooftops.share),
   // so these counts can be fractional and the rooftop rows add up to the overall totals.
@@ -49,10 +55,15 @@ export async function usageReport({ from, to }) {
              coalesce(sum(s.share) FILTER (WHERE e.status = 'ok' AND e.mode = 'response'), 0)::float AS response,
              coalesce(sum((e.input_tokens + e.output_tokens) * s.share), 0)::float AS tokens,
              coalesce(sum(e.cost_usd * s.share), 0)::float AS cost_usd,
-             count(DISTINCT e.user_id)::int AS active_users
+             count(DISTINCT e.user_id)::int AS active_users,
+             coalesce(sum(s.share) FILTER (WHERE o.outcome = 'used'), 0)::float AS used,
+             coalesce(sum(s.share) FILTER (WHERE o.outcome = 'discarded'), 0)::float AS discarded,
+             coalesce(sum(s.share) FILTER (WHERE o.rating = 1), 0)::float AS thumbs_up,
+             coalesce(sum(s.share) FILTER (WHERE o.rating = -1), 0)::float AS thumbs_down
       FROM usage_event_rooftops s
       JOIN usage_events e ON e.id = s.event_id
       JOIN rooftops r ON r.id = s.rooftop_id
+      LEFT JOIN result_outcomes o ON o.request_id = e.request_id
       WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
       GROUP BY r.id, r.name
 
@@ -65,8 +76,13 @@ export async function usageReport({ from, to }) {
              count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'response')::float,
              coalesce(sum(e.input_tokens + e.output_tokens), 0)::float,
              coalesce(sum(e.cost_usd), 0)::float,
-             count(DISTINCT e.user_id)::int
+             count(DISTINCT e.user_id)::int,
+             count(o.request_id) FILTER (WHERE o.outcome = 'used')::float,
+             count(o.request_id) FILTER (WHERE o.outcome = 'discarded')::float,
+             count(o.request_id) FILTER (WHERE o.rating = 1)::float,
+             count(o.request_id) FILTER (WHERE o.rating = -1)::float
       FROM usage_events e
+      LEFT JOIN result_outcomes o ON o.request_id = e.request_id
       WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
         AND NOT EXISTS (SELECT 1 FROM usage_event_rooftops s WHERE s.event_id = e.id)
       HAVING count(*) > 0
@@ -89,9 +105,14 @@ export async function usageReport({ from, to }) {
            count(*) FILTER (WHERE e.status = 'ok' AND e.mode = 'response')::int AS response,
            coalesce(sum(e.input_tokens + e.output_tokens), 0)::bigint AS tokens,
            coalesce(sum(e.cost_usd), 0)::float AS cost_usd,
-           max(e.created_at) AS last_used
+           max(e.created_at) AS last_used,
+           count(o.request_id) FILTER (WHERE o.outcome = 'used')::int AS used,
+           count(o.request_id) FILTER (WHERE o.outcome = 'discarded')::int AS discarded,
+           count(o.request_id) FILTER (WHERE o.rating = 1)::int AS thumbs_up,
+           count(o.request_id) FILTER (WHERE o.rating = -1)::int AS thumbs_down
     FROM usage_events e
     LEFT JOIN users u ON u.id = e.user_id
+    LEFT JOIN result_outcomes o ON o.request_id = e.request_id
     WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
     GROUP BY e.user_id, u.name, u.email
     ORDER BY requests DESC`;
@@ -110,7 +131,23 @@ export async function usageReport({ from, to }) {
   num([totals], 'output_tokens');
   num(byUser, 'tokens');
 
-  return { from, to, timezone: tz, totals, byRooftop, byUser, byDay };
+  // How each button's results fare (only requests from extension 3.3.0+, which report a variant)
+  const byVariant = await sql`
+    SELECT e.variant, e.mode,
+           count(*) FILTER (WHERE e.status = 'ok')::int AS requests,
+           count(o.request_id) FILTER (WHERE o.outcome = 'used')::int AS used,
+           count(o.request_id) FILTER (WHERE o.outcome = 'used' AND o.edited)::int AS edited,
+           count(o.request_id) FILTER (WHERE o.outcome = 'discarded')::int AS discarded,
+           count(o.request_id) FILTER (WHERE o.rating = 1)::int AS thumbs_up,
+           count(o.request_id) FILTER (WHERE o.rating = -1)::int AS thumbs_down
+    FROM usage_events e
+    LEFT JOIN result_outcomes o ON o.request_id = e.request_id
+    WHERE (e.created_at AT TIME ZONE ${tz})::date BETWEEN ${from}::date AND ${to}::date
+      AND e.variant IS NOT NULL
+    GROUP BY e.variant, e.mode
+    ORDER BY requests DESC`;
+
+  return { from, to, timezone: tz, totals, byRooftop, byUser, byDay, byVariant };
 }
 
 /** One user's successful requests and estimated cost so far this month (report time zone) */

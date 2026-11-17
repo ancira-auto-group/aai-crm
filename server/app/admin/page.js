@@ -23,6 +23,9 @@ async function api(path, { method = 'GET', body } = {}) {
 
 const money = (n) => `$${Number(n || 0).toFixed(n > 0 && n < 1 ? 4 : 2)}`;
 const count = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 1 });
+// Share of results people used (Copy & Close) out of those they used or closed; '—' when none reported yet
+const usedRate = (used, discarded) => (used + discarded > 0 ? `${Math.round((100 * used) / (used + discarded))}%` : '—');
+const thumbs = (up, down) => (up || down ? `${count(up)} / ${count(down)}` : '—');
 const rooftopList = (names) => (names && names.length ? names.join(', ') : 'Unassigned');
 const when = (d) => (d ? new Date(d).toLocaleString() : 'Never');
 
@@ -213,6 +216,11 @@ function UsageTab() {
             <div className="stat"><div className="value">{count(report.totals.active_users)}</div><div className="label">Active users</div></div>
             <div className="stat"><div className="value">{count(report.totals.input_tokens + report.totals.output_tokens)}</div><div className="label">Tokens</div></div>
             <div className="stat"><div className="value">{money(report.totals.cost_usd)}</div><div className="label">Estimated cost</div></div>
+            <div className="stat">
+              <div className="value">{usedRate(report.totals.used, report.totals.discarded)}</div>
+              <div className="label">Results used{report.totals.used > 0 && ` · ${Math.round((100 * report.totals.edited) / report.totals.used)}% edited first`}</div>
+            </div>
+            <div className="stat"><div className="value">{thumbs(report.totals.thumbs_up, report.totals.thumbs_down)}</div><div className="label">👍 / 👎</div></div>
           </div>
 
           {report.byDay.length > 1 && (
@@ -222,6 +230,33 @@ function UsageTab() {
                 {report.byDay.map((d) => (
                   <div key={d.day} title={`${d.day}: ${d.requests} requests`} style={{ height: `${(d.requests / maxDay) * 100}%` }} />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {report.byVariant.length > 0 && (
+            <div className="card">
+              <h2>Results by button</h2>
+              <p className="muted" style={{ marginTop: 0 }}>
+                How each way of generating a result does: the first result, the tweak buttons, Mix It Up, Add Some Flair and store changes.
+                "Used" means Copy &amp; Close; the rest were closed without using. Recorded from extension 3.3.0.
+              </p>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Button</th><th>Mode</th><th className="num">Requests</th><th className="num">Used</th><th className="num hide-sm">Edited before use</th><th className="num">👍 / 👎</th></tr></thead>
+                  <tbody>
+                    {report.byVariant.map((v) => (
+                      <tr key={`${v.variant}-${v.mode}`}>
+                        <td>{v.variant === 'initial' ? 'First result' : v.variant}</td>
+                        <td>{v.mode === 'enhance' ? 'Enhance' : 'Reply'}</td>
+                        <td className="num">{count(v.requests)}</td>
+                        <td className="num">{usedRate(v.used, v.discarded)}</td>
+                        <td className="num hide-sm">{v.used > 0 ? `${Math.round((100 * v.edited) / v.used)}%` : '—'}</td>
+                        <td className="num">{thumbs(v.thumbs_up, v.thumbs_down)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -236,6 +271,10 @@ function UsageTab() {
                 { label: 'Enhance', value: (r) => r.enhance },
                 { label: 'Reply', value: (r) => r.response },
                 { label: 'Active users', value: (r) => r.active_users },
+                { label: 'Used', value: (r) => r.used },
+                { label: 'Discarded', value: (r) => r.discarded },
+                { label: 'Thumbs up', value: (r) => r.thumbs_up },
+                { label: 'Thumbs down', value: (r) => r.thumbs_down },
                 { label: 'Tokens', value: (r) => r.tokens },
                 { label: 'Estimated cost (USD)', value: (r) => r.cost_usd.toFixed(4) }
               ])}>Export CSV</button>
@@ -243,14 +282,16 @@ function UsageTab() {
             <p className="muted" style={{ marginTop: 0 }}>Click a rooftop to filter the user table.</p>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Rooftop</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Users</th><th className="num hide-sm">Tokens</th><th className="num">Est. cost</th></tr></thead>
+                <thead><tr><th>Rooftop</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Users</th><th className="num">Used</th><th className="num hide-sm">👍 / 👎</th><th className="num hide-sm">Tokens</th><th className="num">Est. cost</th></tr></thead>
                 <tbody>
-                  {report.byRooftop.length === 0 && <tr><td colSpan={7} className="muted">No usage in this period</td></tr>}
+                  {report.byRooftop.length === 0 && <tr><td colSpan={9} className="muted">No usage in this period</td></tr>}
                   {report.byRooftop.map((r) => (
                     <tr key={r.rooftop_id ?? 'none'} className={`clickable ${rooftopFilter === r.rooftop ? 'selected' : ''}`}
                       onClick={() => setRooftopFilter(rooftopFilter === r.rooftop ? null : r.rooftop)}>
                       <td>{r.rooftop}</td><td className="num">{count(r.requests)}</td><td className="num hide-sm">{count(r.enhance)}</td>
                       <td className="num hide-sm">{count(r.response)}</td><td className="num">{count(r.active_users)}</td>
+                      <td className="num">{usedRate(r.used, r.discarded)}</td><td className="num hide-sm">{thumbs(r.thumbs_up, r.thumbs_down)}</td>
+                      
                       <td className="num hide-sm">{count(r.tokens)}</td><td className="num">{money(r.cost_usd)}</td>
                     </tr>
                   ))}
@@ -277,14 +318,16 @@ function UsageTab() {
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>User</th><th>Rooftops</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Est. cost</th><th className="hide-sm">Last used</th></tr></thead>
+                <thead><tr><th>User</th><th>Rooftops</th><th className="num">Requests</th><th className="num hide-sm">Enhance</th><th className="num hide-sm">Reply</th><th className="num">Used</th><th className="num hide-sm">👍 / 👎</th><th className="num">Est. cost</th><th className="hide-sm">Last used</th></tr></thead>
                 <tbody>
-                  {users.length === 0 && <tr><td colSpan={7} className="muted">No usage in this period</td></tr>}
+                  {users.length === 0 && <tr><td colSpan={9} className="muted">No usage in this period</td></tr>}
                   {users.map((u) => (
                     <tr key={u.user_id ?? 'deleted'}>
                       <td>{u.name || u.email}{u.name && <div className="muted" style={{ fontSize: 12 }}>{u.email}</div>}</td>
                       <td>{rooftopList(u.rooftops)}</td><td className="num">{count(u.requests)}</td><td className="num hide-sm">{count(u.enhance)}</td>
-                      <td className="num hide-sm">{count(u.response)}</td><td className="num">{money(u.cost_usd)}</td>
+                      <td className="num hide-sm">{count(u.response)}</td>
+                      <td className="num">{usedRate(u.used, u.discarded)}</td><td className="num hide-sm">{thumbs(u.thumbs_up, u.thumbs_down)}</td>
+                      <td className="num">{money(u.cost_usd)}</td>
                       <td className="hide-sm">{when(u.last_used)}</td>
                     </tr>
                   ))}

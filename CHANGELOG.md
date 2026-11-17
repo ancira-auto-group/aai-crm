@@ -4,7 +4,13 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.2.0] - Unreleased
+## [3.3.0] - Unreleased
+
+- **Thumbs up / down** on each result in the Enhance/Reply window
+- **Result tracking**: each result reports whether it was used (Copy & Close, and whether it was edited first) or closed without using, and which button produced it (first result, Shorter, Mix It Up, Add Some Flair, store change...)
+- Usage tab: "Results used" rate and 👍/👎 overall, per rooftop and per user, plus a **Results by button** table showing how each tweak performs
+
+## [3.2.0] - 2026-11-17
 
 - **Store details on the Rooftops tab**: full name, address, phone and hours per store; the AI gets the sender's store details automatically, so the prompts no longer need a hand-kept store list
 - **Prompt history**: every save of the Enhance and Reply prompts is kept, with who/when; view any version and restore it in one click
