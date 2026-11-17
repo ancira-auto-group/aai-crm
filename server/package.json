@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "migrate": "node scripts/migrate.mjs",
-    "create-admin": "node scripts/create-admin.mjs"
+    "create-admin": "node scripts/create-admin.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.0",
