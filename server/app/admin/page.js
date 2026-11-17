@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
 /* ---------- helpers ---------- */
 
@@ -380,6 +380,7 @@ function UsersTab({ me }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState('');
+  const [inactiveOnly, setInactiveOnly] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -428,9 +429,14 @@ function UsersTab({ me }) {
   };
 
   const modelLabel = (id) => models.find((m) => m.id === id)?.label.split(' (')[0] || 'Default';
+  // Adoption: active regular users who haven't used the tool in the last 7 days
+  const isInactive = (u) => u.active && u.role === 'user' && u.requests_7d === 0;
+  const people = (users || []).filter((u) => u.active && u.role === 'user');
+  const usedThisWeek = people.filter((u) => u.requests_7d > 0).length;
   const shown = (users || []).filter((u) => {
     const q = filter.trim().toLowerCase();
-    return !q || [u.email, u.name, ...u.rooftops.map((r) => r.name)].some((v) => (v || '').toLowerCase().includes(q));
+    const matches = !q || [u.email, u.name, ...u.rooftops.map((r) => r.name)].some((v) => (v || '').toLowerCase().includes(q));
+    return matches && (!inactiveOnly || isInactive(u));
   });
 
   return (
@@ -445,9 +451,18 @@ function UsersTab({ me }) {
         <div className="row" style={{ alignItems: 'center' }}>
           <h2 style={{ margin: 0 }}>Users</h2>
           <span className="spacer" />
+          <button className={`btn small ${inactiveOnly ? 'primary' : ''}`} onClick={() => setInactiveOnly(!inactiveOnly)}>
+            Inactive ({people.length - usedThisWeek})
+          </button>
           <input placeholder="Search name, email, rooftop" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ maxWidth: 260 }} />
           {!adding && <button className="btn primary" onClick={() => { setAdding(true); setEditing(null); }}>Add user</button>}
         </div>
+
+        {users && (
+          <p className="muted" style={{ margin: '10px 0 0' }}>
+            {usedThisWeek} of {people.length} people used AAI in the last 7 days.
+          </p>
+        )}
 
         {adding && (
           <div className="card" style={{ marginTop: 12, background: 'var(--surface-2)' }}>
@@ -459,10 +474,10 @@ function UsersTab({ me }) {
         {!users ? <p className="muted">Loading…</p> : (
           <div className="table-wrap" style={{ marginTop: 12 }}>
             <table>
-              <thead><tr><th>User</th><th>Rooftops</th><th className="hide-sm">Model</th><th className="hide-sm">Last active</th><th /></tr></thead>
+              <thead><tr><th>User</th><th>Rooftops</th><th className="hide-sm">Model</th><th className="num">Requests 7d / 30d</th><th className="hide-sm">Last active</th><th /></tr></thead>
               <tbody>
                 {shown.map((u) => editing === u.id ? (
-                  <tr key={u.id}><td colSpan={5}>
+                  <tr key={u.id}><td colSpan={6}>
                     <div className="muted" style={{ marginBottom: 8 }}>{u.email}</div>
                     <UserForm
                       initial={{ name: u.name, role: u.role, rooftopIds: u.rooftops.map((r) => r.id), model: u.model ?? '', isDeveloper: !!u.is_developer }}
@@ -487,6 +502,11 @@ function UsersTab({ me }) {
                       ))}
                     </td>
                     <td className="hide-sm">{modelLabel(u.model)}</td>
+                    <td className="num">
+                      {count(u.requests_7d)} / {count(u.requests_30d)}
+                      {u.active && u.role === 'user' && !u.last_active_at && <div><span className="badge warn">Never used</span></div>}
+                      {u.active && u.role === 'user' && u.last_active_at && u.requests_7d === 0 && <div><span className="badge warn">Idle 7+ days</span></div>}
+                    </td>
                     <td className="hide-sm">{when(u.last_active_at)}</td>
                     <td>
                       <div className="actions">
@@ -500,7 +520,7 @@ function UsersTab({ me }) {
                     </td>
                   </tr>
                 ))}
-                {shown.length === 0 && <tr><td colSpan={5} className="muted">No users found</td></tr>}
+                {shown.length === 0 && <tr><td colSpan={6} className="muted">No users found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -512,9 +532,28 @@ function UsersTab({ me }) {
 
 /* ---------- rooftops ---------- */
 
+const EMPTY_STORE = { name: '', fullName: '', address: '', phone: '', hours: '' };
+
+function StoreFields({ value, onChange, autoFocus }) {
+  const set = (key) => (e) => onChange({ ...value, [key]: e.target.value });
+  return (
+    <>
+      <div className="row">
+        <label style={{ flex: '0 1 140px' }}>Short name<input value={value.name} onChange={set('name')} placeholder="e.g. AWC" required autoFocus={autoFocus} /></label>
+        <label>Full name<input value={value.fullName} onChange={set('fullName')} placeholder="e.g. Ancira-Winton Chevrolet" /></label>
+        <label style={{ flex: '0 1 180px' }}>Phone<input value={value.phone} onChange={set('phone')} placeholder="210-555-0100" /></label>
+      </div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <label>Address<input value={value.address} onChange={set('address')} placeholder="6111 Bandera Rd, San Antonio, TX 78238" /></label>
+        <label>Hours<input value={value.hours} onChange={set('hours')} placeholder="Sales Mon–Sat 9–8, Sun closed" /></label>
+      </div>
+    </>
+  );
+}
+
 function RooftopsTab() {
   const [rooftops, setRooftops] = useState(null);
-  const [name, setName] = useState('');
+  const [draft, setDraft] = useState(EMPTY_STORE);
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState(null);
 
@@ -536,60 +575,71 @@ function RooftopsTab() {
   const add = (e) => {
     e.preventDefault();
     act(async () => {
-      await api('/api/admin/rooftops', { method: 'POST', body: { name } });
-      setNotice({ type: 'success', text: `Added ${name}` });
-      setName('');
+      await api('/api/admin/rooftops', { method: 'POST', body: draft });
+      setNotice({ type: 'success', text: `Added ${draft.name}` });
+      setDraft(EMPTY_STORE);
     });
   };
 
   const save = (e) => {
     e.preventDefault();
     act(async () => {
-      await api(`/api/admin/rooftops/${editing.id}`, { method: 'PATCH', body: { name: editing.name } });
+      const { id, ...body } = editing;
+      await api(`/api/admin/rooftops/${id}`, { method: 'PATCH', body });
       setEditing(null);
+      setNotice({ type: 'success', text: `Saved ${body.name}` });
     });
   };
+
+  const toForm = (r) => ({ id: r.id, name: r.name, fullName: r.full_name || '', address: r.address || '', phone: r.phone || '', hours: r.hours || '' });
 
   return (
     <>
       <Notice notice={notice} onClose={() => setNotice(null)} />
       <form className="card" onSubmit={add}>
         <h2>Add a rooftop</h2>
-        <div className="row">
-          <label>Name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. AWC" required /></label>
-          <button className="btn primary">Add</button>
-        </div>
+        <StoreFields value={draft} onChange={setDraft} />
+        <div className="row" style={{ marginTop: 12 }}><button className="btn primary">Add</button></div>
       </form>
 
       <div className="card">
         <h2>Rooftops</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          The name is what the AI prompts use to look up the store (e.g. AWC), so keep it matching the abbreviations in the prompts.
-          Disabling a rooftop blocks users who have no other active rooftop. Usage history is kept.
+          The AI uses these details for the sender's store (name, address, phone, hours), so keep them current.
+          The short name is how people and reports refer to the store. Disabling a rooftop blocks users who have no other active rooftop; usage history is kept.
         </p>
         {!rooftops ? <p className="muted">Loading…</p> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th className="num">Active users</th><th /></tr></thead>
+              <thead><tr><th>Store</th><th className="hide-sm">Address &amp; phone</th><th className="num">Users</th><th /></tr></thead>
               <tbody>
-                {rooftops.length === 0 && <tr><td colSpan={3} className="muted">No rooftops yet</td></tr>}
+                {rooftops.length === 0 && <tr><td colSpan={4} className="muted">No rooftops yet</td></tr>}
                 {rooftops.map((r) => editing?.id === r.id ? (
                   <tr key={r.id}>
-                    <td colSpan={3}>
-                      <form className="row" onSubmit={save}>
-                        <label>Name<input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} required autoFocus /></label>
-                        <button className="btn small primary">Save</button>
-                        <button type="button" className="btn small" onClick={() => setEditing(null)}>Cancel</button>
+                    <td colSpan={4}>
+                      <form onSubmit={save}>
+                        <StoreFields value={editing} onChange={setEditing} autoFocus />
+                        <div className="row" style={{ marginTop: 10 }}>
+                          <button className="btn small primary">Save</button>
+                          <button type="button" className="btn small" onClick={() => setEditing(null)}>Cancel</button>
+                        </div>
                       </form>
                     </td>
                   </tr>
                 ) : (
                   <tr key={r.id} className={r.active ? '' : 'inactive'}>
-                    <td>{r.name} {!r.active && <span className="badge">Disabled</span>}</td>
+                    <td>
+                      <strong>{r.name}</strong> {!r.active && <span className="badge">Disabled</span>}
+                      <div className="muted" style={{ fontSize: 12 }}>{r.full_name || <span className="badge warn">No full name</span>}</div>
+                    </td>
+                    <td className="hide-sm" style={{ fontSize: 13 }}>
+                      {r.address || <span className="badge warn">No address</span>}
+                      <div className="muted">{r.phone || 'No phone'}{r.hours ? ` · ${r.hours}` : ''}</div>
+                    </td>
                     <td className="num">{count(r.active_users)}</td>
                     <td>
                       <div className="actions">
-                        <button className="btn small" onClick={() => setEditing({ id: r.id, name: r.name })}>Rename</button>
+                        <button className="btn small" onClick={() => setEditing(toForm(r))}>Edit</button>
                         {r.active
                           ? <button className="btn small danger" onClick={() => window.confirm(`Disable ${r.name}? Users with no other active rooftop will lose access.`) && act(() => api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { active: false } }))}>Disable</button>
                           : <button className="btn small" onClick={() => act(() => api(`/api/admin/rooftops/${r.id}`, { method: 'PATCH', body: { active: true } }))}>Enable</button>}
@@ -618,8 +668,14 @@ function PromptEditor({ prompt, onSaved }) {
   const [importUrl, setImportUrl] = useState('');
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState(null); // null = hidden
+  const [viewing, setViewing] = useState(null);
 
   useEffect(() => { setContent(prompt.content); }, [prompt.content]);
+
+  const loadHistory = useCallback(() => api(`/api/admin/prompts/history?mode=${prompt.mode}`)
+    .then((d) => setHistory(d.versions))
+    .catch((err) => setNotice({ type: 'error', text: err.message })), [prompt.mode]);
 
   const save = async (body) => {
     setBusy(true);
@@ -630,6 +686,9 @@ function PromptEditor({ prompt, onSaved }) {
       setImportUrl('');
       setNotice({ type: 'success', text: 'Saved. Everyone will be using it within a minute.' });
       onSaved();
+      if (history) {
+        loadHistory();
+      }
     } catch (err) {
       setNotice({ type: 'error', text: err.message });
     } finally {
@@ -649,7 +708,41 @@ function PromptEditor({ prompt, onSaved }) {
       <div className="row" style={{ marginTop: 10 }}>
         <button className="btn primary" disabled={busy || content === prompt.content} onClick={() => save({ content })}>Save</button>
         <button className="btn" disabled={busy || content === prompt.content} onClick={() => setContent(prompt.content)}>Discard changes</button>
+        <span className="spacer" />
+        <button className="btn" onClick={() => (history ? setHistory(null) : loadHistory())}>{history ? 'Hide history' : 'History'}</button>
       </div>
+      {history && (
+        <div className="table-wrap" style={{ marginTop: 12 }}>
+          <table>
+            <thead><tr><th>Saved</th><th>By</th><th className="hide-sm">Note</th><th className="num">Length</th><th /></tr></thead>
+            <tbody>
+              {history.length === 0 && <tr><td colSpan={5} className="muted">No saved versions yet</td></tr>}
+              {history.map((v, i) => (
+                <Fragment key={v.id}>
+                  <tr>
+                    <td>{when(v.created_at)} {i === 0 && <span className="badge admin">Current</span>}</td>
+                    <td>{v.created_by || <span className="muted">—</span>}</td>
+                    <td className="hide-sm muted">{v.note || ''}</td>
+                    <td className="num">{count(v.content.length)}</td>
+                    <td>
+                      <div className="actions">
+                        <button className="btn small" onClick={() => setViewing(viewing === v.id ? null : v.id)}>{viewing === v.id ? 'Hide' : 'View'}</button>
+                        {i > 0 && (
+                          <button className="btn small" disabled={busy} onClick={() => window.confirm(`Restore the version saved ${when(v.created_at)}? Everyone will use it within a minute.`)
+                            && save({ content: v.content, note: `Restored from ${when(v.created_at)}` })}>Restore</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                  {viewing === v.id && (
+                    <tr><td colSpan={5}><pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: 12, maxHeight: 320, overflow: 'auto' }}>{v.content}</pre></td></tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="row" style={{ marginTop: 14 }}>
         <label>Or replace it with the text at a URL (e.g. a raw Gist link)
           <input type="url" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} placeholder="https://gist.githubusercontent.com/…/raw/…" />

@@ -15,8 +15,12 @@ export const GET = route(async (request) => {
     SELECT u.id, u.email, u.name, u.role, u.model, u.active, u.is_developer,
            u.must_change_password, u.created_at, u.last_active_at,
            (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked,
+           (SELECT count(*) FROM usage_events e
+             WHERE e.user_id = u.id AND e.status = 'ok' AND e.created_at > now() - interval '7 days')::int AS requests_7d,
+           (SELECT count(*) FROM usage_events e
+             WHERE e.user_id = u.id AND e.status = 'ok' AND e.created_at > now() - interval '30 days')::int AS requests_30d,
            coalesce((
-             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active, 'crmName', r.crm_name) ORDER BY r.name)
+             SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'active', r.active) ORDER BY r.name)
              FROM user_rooftops ur JOIN rooftops r ON r.id = ur.rooftop_id
              WHERE ur.user_id = u.id
            ), '[]'::json) AS rooftops
