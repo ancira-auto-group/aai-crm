@@ -4,7 +4,7 @@ Next.js app that provides:
 
 - **Accounts**: email/password sign-in for the extension (bearer tokens) and the admin page (httpOnly cookie)
 - **OpenAI relay**: `POST /api/generate` streams results using the one server-side OpenAI key, with each user's assigned model
-- **Usage tracking**: one `usage_events` row per request, tagged with the user, and split evenly across the user's active rooftops at that time (`usage_event_rooftops`)
+- **Usage tracking**: one `usage_events` row per request, tagged with the user and counted toward one rooftop (`usage_event_rooftops`): the store a multi-store user picked, otherwise their first active rooftop alphabetically
 - **Admin page** at `/admin`: usage reports, users, rooftops, prompts
 
 Data lives in Neon Postgres (`db/schema.sql`).
@@ -77,7 +77,7 @@ All responses are JSON unless noted. Errors look like `{ "error": "message", "co
 | `POST /api/auth/logout` | signed in | Ends the current session |
 | `POST /api/auth/password` | signed in | `{ currentPassword, newPassword }`; signs out other sessions |
 | `GET /api/me` | signed in | User (with `rooftops`), model, and this month's usage |
-| `POST /api/generate` | signed in | `{ mode: 'enhance' \| 'response', text, additionalContext? }` → server-sent events: `delta`, `done` or `error` |
+| `POST /api/generate` | signed in | `{ mode: 'enhance' \| 'response', text, additionalContext?, rooftopId?, variant? }` → server-sent events: `delta`, `done` or `error` |
 | `GET /api/admin/usage?from&to` | admin | Totals plus breakdowns by rooftop, user and day |
 | `GET, POST /api/admin/users` | admin | List, or create `{ email, name, role, rooftopIds, model }` (returns a temporary password) |
 | `PATCH /api/admin/users/:id` | admin | `{ name, role, rooftopIds, model, active, unlock }`; leaving out `rooftopIds` keeps the current rooftops |

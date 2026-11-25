@@ -4,7 +4,11 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.3.0] - Unreleased
+## [3.3.1] - Unreleased
+
+- **Every request counts toward one store**: for people at several stores, the request counts 100% toward the store chosen in the dropdown; if none was ever chosen, toward their first store (alphabetical), which the dropdowns now preselect. The "Not sure" option and the even split are gone; past requests keep how they were counted
+
+## [3.3.0] - 2026-11-17
 
 - Automated API tests (sign-in, roles, store details, multi-store attribution, outcomes, feedback, prompt history, version gate) run in CI on every pull request
 - **Thumbs up / down** on each result in the Enhance/Reply window

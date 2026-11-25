@@ -210,7 +210,7 @@ const HANDLERS = {
   signOut: () => signOut(),
   changePassword: (request) => changePassword(request.currentPassword, request.newPassword),
   openOptions: () => chrome.runtime.openOptionsPage(),
-  // A multi-store user's Current store (null = "Not sure"), shared by the popup, settings page and Enhance/Reply window
+  // A multi-store user's Current store, shared by the popup, settings page and Enhance/Reply window
   setLastStore: (request) => chrome.storage.local.set({
     last_store_id: Number.isInteger(request.rooftopId) ? request.rooftopId : null
   }),

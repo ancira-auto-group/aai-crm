@@ -584,14 +584,15 @@ function showSetupPrompt(signedIn = false) {
 
 /**
  * Store to preselect for a multi-store user: their Current store setting (chosen in the extension
- * popup, settings page or this window), or none ("Not sure") if they haven't picked one.
+ * popup, settings page or this window), or their first store if they haven't picked one.
  * Single-store users have no choices and always get null; the server uses their store.
  */
 function pickInitialStore(stores, currentStoreSetting) {
   if (stores.length === 0) {
     return null;
   }
-  return stores.some((s) => s.id === currentStoreSetting) ? currentStoreSetting : null;
+  // Until they pick one, use their first store (alphabetical, the same default the server uses)
+  return stores.some((s) => s.id === currentStoreSetting) ? currentStoreSetting : stores[0].id;
 }
 
 function storePickerHtml() {
@@ -605,7 +606,6 @@ function storePickerHtml() {
         <label class="aai-crm-store" title="Your current store. Used for the dealership name, address and phone, and for usage reports. You can also change it from the extension icon.">
           <span>Store</span>
           <select id="aai-crm-store">
-            <option value=""${currentStoreId === null ? ' selected' : ''}>${currentStoreId === null ? 'Choose your store' : 'Not sure'}</option>
             ${options}
           </select>
         </label>`;
