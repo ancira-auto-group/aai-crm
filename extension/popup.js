@@ -32,13 +32,11 @@ function showStorePicker(user, currentStoreId) {
   if (stores.length < 2) {
     return;
   }
-  const current = stores.some((s) => s.id === currentStoreId) ? currentStoreId : null;
+  // Until they pick one, their first store is used (the same default as the server)
+  const current = stores.some((s) => s.id === currentStoreId) ? currentStoreId : stores[0].id;
   const select = $('currentStore');
-  select.replaceChildren(
-    new Option(current === null ? 'Choose your store' : 'Not sure', ''),
-    ...stores.map((s) => new Option(s.name, String(s.id)))
-  );
-  select.value = current === null ? '' : String(current);
+  select.replaceChildren(...stores.map((s) => new Option(s.name, String(s.id))));
+  select.value = String(current);
 }
 
 function showUsage(usage) {
@@ -60,7 +58,6 @@ async function init() {
     const rooftopId = e.target.value ? Number(e.target.value) : null;
     currentStoreId = rooftopId;
     chrome.runtime.sendMessage({ action: 'setLastStore', rooftopId });
-    e.target.options[0].text = rooftopId === null ? 'Choose your store' : 'Not sure';
   });
 
   const status = await send('getStatus').catch(() => null);

@@ -156,16 +156,27 @@ test('generation streams and sends the sender\'s store details to the AI', async
   assert.ok(row.total_ms >= 0);
 });
 
-test('multi-store users: split usage, or 100% to the chosen store', async () => {
-  const split = await generate(state.multi.token, { mode: 'enhance', text: 'see you at noon tomorrow', variant: 'initial' });
-  assert.match((await lastAiRequest()).messages[0].content, /works at these dealerships/);
-  const splitShares = await waitFor(async () => {
+test('multi-store users: 100% to the chosen store, else their first store', async () => {
+  const sharesFor = (requestId) => waitFor(async () => {
     const rows = await sql`
-      SELECT s.share::float AS share FROM usage_event_rooftops s JOIN usage_events e ON e.id = s.event_id
-      WHERE e.request_id = ${split.done.requestId}`;
-    return rows.length ? rows.map((r) => r.share) : null;
+      SELECT s.rooftop_id, s.share::float AS share FROM usage_event_rooftops s JOIN usage_events e ON e.id = s.event_id
+      WHERE e.request_id = ${requestId}`;
+    return rows.length ? rows.map((r) => [r.rooftop_id, r.share]) : null;
   });
-  assert.deepEqual(splitShares, [0.5, 0.5]);
+
+  // No store picked: counts toward their first store alphabetically (AWC before NIS)
+  const unpicked = await generate(state.multi.token, { mode: 'enhance', text: 'see you at noon tomorrow', variant: 'initial' });
+  assert.match((await lastAiRequest()).messages[0].content, /works at AWC \(Ancira-Winton Chevrolet\)/);
+  assert.deepEqual(await sharesFor(unpicked.done.requestId), [[state.awc, 1]]);
+
+  // A store that isn't theirs is ignored the same way
+  const foreign = await generate(state.multi.token, { mode: 'enhance', text: 'see you at noon tomorrow', rooftopId: 999999 });
+  assert.deepEqual(await sharesFor(foreign.done.requestId), [[state.awc, 1]]);
+
+  // Picking NIS counts 100% toward NIS
+  const picked = await generate(state.multi.token, { mode: 'enhance', text: 'see you at noon tomorrow', rooftopId: state.nis });
+  assert.match((await lastAiRequest()).messages[0].content, /works at NIS \(Ancira Nissan\)/);
+  assert.deepEqual(await sharesFor(picked.done.requestId), [[state.nis, 1]]);
 
   const chosen = await generate(state.multi.token, { mode: 'enhance', text: 'see you at noon tomorrow', rooftopId: state.awc, variant: 'Shorter' });
   assert.match((await lastAiRequest()).messages[0].content, /works at AWC \(Ancira-Winton Chevrolet\)/);

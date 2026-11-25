@@ -35,9 +35,9 @@ Open the admin page at [aai-crm.ancira.app/admin](https://aai-crm.ancira.app/adm
 | **Prompts** | Edit the instructions the AI follows for Enhance and Reply. Changes apply to everyone within about a minute; **History** lists every saved version, with one-click restore. The server adds a line naming the sender's rooftop(s), so a store directory in the prompt keyed by rooftop name (e.g. `AWC: Ancira-Winton Chevrolet, 6111 Bandera Rd…`) lets the AI use the right address and phone. See [docs/writing-prompts.md](docs/writing-prompts.md). |
 | **Feedback** | Developers only (admins with **Developer** ticked on the Users tab). Notes people send with the feedback button in the Enhance/Reply window, with who, when, store, and optionally the message and AI suggestion. Mark items read or resolved. |
 
-People at several rooftops get a **Current store** dropdown in the extension popup and settings page (also shown in the Enhance/Reply window). Their choice is remembered; the AI uses that store's details and the request counts fully toward it. Until they pick one, requests are split as described below.
+People at several rooftops get a **Current store** dropdown in the extension popup and settings page (also shown in the Enhance/Reply window). It starts on their first store (alphabetical) and remembers their choice. The AI uses that store's details, and each request counts fully toward it.
 
-Each request is recorded with the rooftops the user belonged to at the time, so moving someone to another rooftop doesn't rewrite past reports. Requests from someone assigned to several rooftops are split evenly among their active rooftops (two rooftops: half the request, tokens and cost each), so rooftop totals always add up to the overall total and can show fractions. Users and rooftops are disabled rather than deleted, so their usage history stays intact.
+Each request is recorded with the rooftop it counted toward at the time, so moving someone to another rooftop doesn't rewrite past reports. (Requests made before 3.3.1 by people at several stores without a store chosen were split evenly among their stores, so older reports can show fractions.)
 
 ### AI models
 

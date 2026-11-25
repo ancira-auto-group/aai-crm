@@ -94,13 +94,11 @@ async function showStorePicker(user) {
     return;
   }
   const status = await send('getStatus').catch(() => ({}));
-  const current = stores.some((s) => s.id === status.lastStoreId) ? status.lastStoreId : null;
+  // Until they pick one, their first store is used (the same default as the server)
+  const current = stores.some((s) => s.id === status.lastStoreId) ? status.lastStoreId : stores[0].id;
   const select = $('currentStore');
-  select.replaceChildren(
-    new Option(current === null ? 'Choose your store' : 'Not sure', ''),
-    ...stores.map((s) => new Option(s.name, String(s.id)))
-  );
-  select.value = current === null ? '' : String(current);
+  select.replaceChildren(...stores.map((s) => new Option(s.name, String(s.id))));
+  select.value = String(current);
 }
 
 async function refresh() {
@@ -196,7 +194,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('currentStore').addEventListener('change', async (e) => {
     const rooftopId = e.target.value ? Number(e.target.value) : null;
     await send('setLastStore', { rooftopId }).catch(() => {});
-    e.target.options[0].text = rooftopId === null ? 'Choose your store' : 'Not sure';
   });
   $('signOutBtn').addEventListener('click', handleSignOut);
   $('passwordSection').addEventListener('submit', handleChangePassword);

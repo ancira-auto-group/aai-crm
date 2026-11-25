@@ -80,10 +80,12 @@ export const POST = route(async (request) => {
   const instructions = str(body.additionalContext, { field: 'Instructions', max: MAX_INSTRUCTION_CHARS });
   const variant = str(body.variant, { field: 'Variant', max: 40 }) || null;
 
-  // A multi-store user may say which store this message is for. Only their own active rooftops count;
-  // anything else falls back to all of their active rooftops.
-  const chosen = user.rooftops.find((r) => r.active && r.id === body.rooftopId);
-  const rooftops = chosen ? [chosen] : user.rooftops;
+  // A multi-store user's request counts toward the store they picked (their own active rooftops only).
+  // With no valid pick (none chosen yet, or an older extension), it counts toward their first active store,
+  // alphabetically: the same one the extension preselects. Users with no active store stay unassigned.
+  const active = user.rooftops.filter((r) => r.active);
+  const chosen = active.find((r) => r.id === body.rooftopId) || active[0];
+  const rooftops = chosen ? [chosen] : [];
 
   const model = modelFor(user);
   const messages = buildMessages(await getPrompt(mode), mode, text, instructions, rooftops);
