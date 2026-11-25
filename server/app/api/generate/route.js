@@ -15,6 +15,46 @@ export const maxDuration = 60;
 
 const MAX_TEXT_CHARS = 8000;
 const MAX_INSTRUCTION_CHARS = 1000;
+const MAX_CONVERSATION_MESSAGES = 12;
+const MAX_CONVERSATION_MESSAGE_CHARS = 1000;
+const MAX_CONVERSATION_CHARS = 6000;
+
+/**
+ * The recent texts in the conversation the user is working in, read from the CRM's SMS window by the extension:
+ * [{ from: 'customer'|'dealership', name?, time?, text }], oldest first. Anything malformed is dropped, and the
+ * oldest messages go first if it's too long. Older extensions send nothing.
+ */
+function parseConversation(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const clean = (v, max) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+  const messages = value.slice(-MAX_CONVERSATION_MESSAGES)
+    .filter((m) => m && (m.from === 'customer' || m.from === 'dealership'))
+    .map((m) => ({ from: m.from, name: clean(m.name, 40), time: clean(m.time, 40), text: clean(m.text, MAX_CONVERSATION_MESSAGE_CHARS) }))
+    .filter((m) => m.text);
+  let total = messages.reduce((sum, m) => sum + m.text.length, 0);
+  while (total > MAX_CONVERSATION_CHARS && messages.length) {
+    total -= messages.shift().text.length;
+  }
+  return messages;
+}
+
+function conversationContext(conversation) {
+  if (!conversation.length) {
+    return '';
+  }
+  const lines = conversation.map((m) => {
+    const who = m.from === 'customer' ? 'Customer' : 'Dealership';
+    return `${m.time ? `[${m.time}] ` : ''}${who}${m.name ? ` (${m.name})` : ''}: ${m.text}`;
+  });
+  return '\n\n# Conversation so far\n' +
+    'These are the most recent text messages between the dealership and this customer, oldest first. ' +
+    'Use them only as background: what has already been asked, answered, offered or promised. ' +
+    'Don\'t repeat information the customer already has, don\'t contradict it, and don\'t answer questions that were already answered. ' +
+    'Only work on the text you are given below.\n' +
+    lines.join('\n');
+}
 
 /** "AWC: Ancira-Winton Chevrolet, 6111 Bandera Rd..., phone ..., hours ..." from the Rooftops tab */
 function storeDetails(r) {
@@ -45,9 +85,9 @@ function rooftopContext(rooftops) {
   return `# Sender's dealership\nThe sender's dealership is unknown, so ${noDetails}.`;
 }
 
-function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
+function buildMessages(systemPrompt, mode, text, instructions, rooftops, conversation) {
   const messages = [
-    { role: 'system', content: `${systemPrompt}\n\n${rooftopContext(rooftops)}` },
+    { role: 'system', content: `${systemPrompt}\n\n${rooftopContext(rooftops)}${conversationContext(conversation)}` },
     { role: 'user', content: mode === 'enhance' ? `Please enhance the following text:\n\n${text}` : text }
   ];
   if (instructions) {
@@ -57,8 +97,9 @@ function buildMessages(systemPrompt, mode, text, instructions, rooftops) {
 }
 
 /**
- * POST /api/generate  { mode: 'enhance'|'response', text, additionalContext?, rooftopId? }
+ * POST /api/generate  { mode: 'enhance'|'response', text, additionalContext?, rooftopId?, variant?, conversation? }
  * rooftopId: the store a multi-store user picked; the request then counts 100% toward it.
+ * conversation: recent texts with the customer, for context (see parseConversation).
  * Streams server-sent events:
  *   data: {"type":"delta","text":"..."}
  *   data: {"type":"done","text":"...","truncated":false}
@@ -79,6 +120,7 @@ export const POST = route(async (request) => {
   const text = str(body.text, { field: 'Text', max: MAX_TEXT_CHARS, required: true });
   const instructions = str(body.additionalContext, { field: 'Instructions', max: MAX_INSTRUCTION_CHARS });
   const variant = str(body.variant, { field: 'Variant', max: 40 }) || null;
+  const conversation = parseConversation(body.conversation);
 
   // A multi-store user's request counts toward the store they picked (their own active rooftops only).
   // With no valid pick (none chosen yet, or an older extension), it counts toward their first active store,
@@ -88,7 +130,7 @@ export const POST = route(async (request) => {
   const rooftops = chosen ? [chosen] : [];
 
   const model = modelFor(user);
-  const messages = buildMessages(await getPrompt(mode), mode, text, instructions, rooftops);
+  const messages = buildMessages(await getPrompt(mode), mode, text, instructions, rooftops, conversation);
   const encoder = new TextEncoder();
   const setupMs = Date.now() - startedAt;
 
@@ -102,17 +144,17 @@ export const POST = route(async (request) => {
     try {
       const [event] = await sql`
         INSERT INTO usage_events (user_id, mode, model, input_tokens, output_tokens, cost_usd, status,
-                                  setup_ms, first_token_ms, total_ms, request_id, variant)
+                                  setup_ms, first_token_ms, total_ms, request_id, variant, context_messages)
         VALUES (${user.id}, ${mode}, ${model}, ${record.inputTokens}, ${record.outputTokens},
                 ${estimateCost(model, record.inputTokens, record.outputTokens)}, ${record.status},
-                ${setupMs}, ${record.firstTokenMs}, ${record.totalMs}, ${requestId}, ${variant})
+                ${setupMs}, ${record.firstTokenMs}, ${record.totalMs}, ${requestId}, ${variant}, ${conversation.length})
         RETURNING id`;
       await attributeUsage(event.id, rooftops);
       await sql`UPDATE users SET last_active_at = now() WHERE id = ${user.id}`;
     } catch (error) {
       console.error('Could not record usage', error);
     }
-    console.log(`generate user=${user.id} model=${model} status=${record.status} setup=${setupMs}ms ` +
+    console.log(`generate user=${user.id} model=${model} status=${record.status} context=${conversation.length} setup=${setupMs}ms ` +
       `first_token=${record.firstTokenMs ?? '-'}ms total=${record.totalMs}ms usage_write=${Date.now() - dbStart}ms`);
   });
 

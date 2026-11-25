@@ -332,7 +332,8 @@ async function streamGeneration(request, controller, onDelta) {
         text: request.text,
         additionalContext: request.additionalContext || '',
         rooftopId: Number.isInteger(request.rooftopId) ? request.rooftopId : null,
-        variant: typeof request.variant === 'string' ? request.variant.slice(0, 40) : ''
+        variant: typeof request.variant === 'string' ? request.variant.slice(0, 40) : '',
+        conversation: Array.isArray(request.conversation) ? request.conversation.slice(-12) : []
       },
       signal: controller.signal,
       stream: true

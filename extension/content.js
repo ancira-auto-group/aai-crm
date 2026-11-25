@@ -12,6 +12,11 @@ const FRAME_SCAN_INTERVAL_MS = 1500;
 const OWN_UI_SELECTOR = '.aai-crm-floating-bar, .aai-crm-modal, .aai-crm-toast';
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', '']);
 
+// VinSolutions' SMS window: one element per text, in date order, with the sender's name, phone, time and status inside
+const SMS_MESSAGE_SELECTOR = '.sms__container .sms__customer, .sms__container .sms__user';
+const SMS_META_SELECTOR = '.sms_messageName, .sms_messagePhone, .sms_messageTimestamp, .sms_messageStatus';
+const MAX_CONTEXT_MESSAGES = 10;
+
 // One-click tweaks shown under the result
 const TONE_CHIPS = [
   { label: 'Shorter', instruction: 'Make it shorter and more concise.' },
@@ -41,6 +46,7 @@ let outcomeReported = false; // Whether this modal's result was already reported
 let shortcuts = { enhance: '', response: '' };
 let storeChoices = []; // Active stores for a multi-store user ([] for single-store users): [{ id, name }]
 let currentStoreId = null; // Store chosen for this modal, or null for "not sure" / single-store users
+let conversation = []; // Recent texts from the CRM's SMS window, captured when an action starts (already redacted)
 const watchedDocs = new WeakSet();
 
 // SVG Icons
@@ -331,6 +337,44 @@ function captureSelectionContext(selection, doc, text) {
 }
 
 /**
+ * The recent texts in the SMS conversation the user is working in, oldest first, so the AI knows what was
+ * already said. If the selection is one of the texts, only that text and the ones before it are used.
+ * Phone numbers, emails and SSNs are redacted, and only first names are kept. [] outside the SMS window.
+ */
+function captureConversation(context) {
+  try {
+    const docs = [context.doc, document].filter((d, i, all) => d && all.indexOf(d) === i);
+    for (const doc of docs) {
+      let items = [...doc.querySelectorAll(SMS_MESSAGE_SELECTOR)];
+      if (!items.length) {
+        continue;
+      }
+      const node = context.range ? context.range.commonAncestorContainer : null;
+      const anchor = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
+      const selected = anchor && anchor.closest(SMS_MESSAGE_SELECTOR);
+      if (selected && items.includes(selected)) {
+        items = items.slice(0, items.indexOf(selected) + 1);
+      }
+      return items.slice(-MAX_CONTEXT_MESSAGES).map((item) => {
+        const clone = item.cloneNode(true);
+        clone.querySelectorAll(SMS_META_SELECTOR).forEach((el) => el.remove());
+        const text = clone.textContent.replace(/\s+/g, ' ').trim();
+        const name = (item.querySelector('.sms_messageName')?.textContent || '').trim().split(/\s+/)[0];
+        return {
+          from: item.classList.contains('sms__customer') ? 'customer' : 'dealership',
+          name: name.slice(0, 40),
+          time: (item.querySelector('.sms_messageTimestamp')?.textContent || '').trim().slice(0, 40),
+          text: text ? detectAndRedactPII(text).redactedText.slice(0, 1000) : '[picture or attachment]'
+        };
+      });
+    }
+  } catch (error) {
+    console.warn('AAI CRM Extension: Could not read the conversation', error);
+  }
+  return [];
+}
+
+/**
  * Handle selection change (cleanup)
  */
 function handleSelectionChange() {
@@ -513,6 +557,7 @@ function startAction(mode, selection, doc) {
   }
   currentSelection = text;
   selectionContext = captureSelectionContext(selection, doc, text);
+  conversation = captureConversation(selectionContext);
   restoreFocusEl = deepActiveElement();
   openModal(mode);
 }
@@ -637,7 +682,7 @@ function createModal(mode = 'enhance') {
       </div>
       <div class="aai-crm-modal-body">
         <div class="aai-crm-section">
-          <label>${originalLabel}</label>
+          <label>${originalLabel}${conversation.length ? ` <span class="aai-crm-context-note" title="The AI also sees the last ${conversation.length} texts in this conversation, so it knows what was already said">+ last ${conversation.length} texts for context</span>` : ''}</label>
           <div class="aai-crm-original-text">${escapeHtml(currentSelection)}</div>
         </div>
         <div class="aai-crm-section aai-crm-result-section">
@@ -1095,6 +1140,7 @@ function generateEnhancedText(additionalContext = '', label = '', variant = '') 
     text: redactedText,
     additionalContext: additionalContext,
     rooftopId: currentStoreId,
+    conversation,
     // Which button produced this result, for the Usage tab ("initial", "Shorter", "Mix it up"...)
     variant: variant || (versions.length === 0 ? 'initial' : label)
   });

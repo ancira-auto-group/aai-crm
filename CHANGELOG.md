@@ -4,7 +4,12 @@ All notable changes to AAI for CRM. Versions follow [Semantic Versioning](https:
 MAJOR for changes that need action from users or admins, MINOR for new features, PATCH for fixes.
 The extension and the server share one version number; see "Versioning" in the README.
 
-## [3.3.1] - Unreleased
+## [3.4.0] - Unreleased
+
+- **Conversation context**: in the VinSolutions SMS window, Enhance and Reply now also send the last texts in the conversation (up to 10, oldest first, marked customer or dealership, with first names and times), so the AI knows what was already asked, answered or offered. If you select one of the texts, only that text and the ones before it are used. Phone numbers, emails and SSNs are redacted as before. The window shows "+ last N texts for context" when this is used
+- Usage records how many texts were sent as context with each request (`usage_events.context_messages`)
+
+## [3.3.1] - 2026-11-25
 
 - **Every request counts toward one store**: for people at several stores, the request counts 100% toward the store chosen in the dropdown; if none was ever chosen, toward their first store (alphabetical), which the dropdowns now preselect. The "Not sure" option and the even split are gone; past requests keep how they were counted
 
