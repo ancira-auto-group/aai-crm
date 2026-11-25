@@ -147,6 +147,7 @@ INSERT INTO prompt_versions (mode, content, note, created_at, created_by)
 -- Which result a request produced (sent to the extension) and which button asked for it
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS request_id uuid;
 ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS variant text;   -- 'initial', 'Shorter', 'Mix it up', 'Store change'...
+ALTER TABLE usage_events ADD COLUMN IF NOT EXISTS context_messages smallint;   -- texts from the conversation sent as context (NULL before 3.4.0)
 CREATE UNIQUE INDEX IF NOT EXISTS usage_events_request_idx ON usage_events (request_id);
 
 -- What happened to each result, reported by the extension. Kept apart from usage_events so it can

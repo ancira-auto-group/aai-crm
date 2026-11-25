@@ -156,6 +156,36 @@ test('generation streams and sends the sender\'s store details to the AI', async
   assert.ok(row.total_ms >= 0);
 });
 
+test('recent texts from the conversation are sent as context', async () => {
+  const conversation = [
+    { from: 'dealership', name: 'Aijah', time: '24 Nov 2026 2:10 PM', text: 'The Pathfinder SL has leather seats.' },
+    { from: 'customer', name: 'Juan', time: '24 Nov 2026 2:12 PM', text: 'What about the SEL' },
+    { from: 'robot', text: 'ignored: unknown sender' },
+    { from: 'customer', text: '   ' },
+    { from: 'customer', name: 'Juan', time: '25 Nov 2026 9:01 AM', text: 'Can I call you later?' }
+  ];
+  const result = await generate(state.single.token, { mode: 'response', text: 'Can I call you later?', conversation });
+  assert.equal(result.status, 200);
+  const system = (await lastAiRequest()).messages[0].content;
+  assert.match(system, /# Conversation so far/);
+  assert.match(system, /\[24 Nov 2026 2:10 PM\] Dealership \(Aijah\): The Pathfinder SL has leather seats\.\n\[24 Nov 2026 2:12 PM\] Customer \(Juan\): What about the SEL\n\[25 Nov 2026 9:01 AM\] Customer \(Juan\): Can I call you later\?$/);
+  assert.doesNotMatch(system, /robot|ignored/);
+  const row = await waitFor(async () => (await sql`SELECT context_messages FROM usage_events WHERE request_id = ${result.done.requestId}`)[0]);
+  assert.equal(row.context_messages, 3);
+
+  // Too much context: the oldest texts are dropped; anything that isn't a list is ignored
+  const long = Array.from({ length: 20 }, (_, i) => ({ from: 'customer', text: `message ${i} ` + 'x'.repeat(900) }));
+  const trimmed = await generate(state.single.token, { mode: 'response', text: 'hello there friend', conversation: long });
+  const trimmedSystem = (await lastAiRequest()).messages[0].content;
+  assert.doesNotMatch(trimmedSystem, /message 13 /);
+  assert.match(trimmedSystem, /message 19 /);
+  assert.ok((await waitFor(async () => (await sql`SELECT context_messages FROM usage_events WHERE request_id = ${trimmed.done.requestId}`)[0])).context_messages <= 6);
+
+  const none = await generate(state.single.token, { mode: 'response', text: 'hello there friend', conversation: 'nope' });
+  assert.equal(none.status, 200);
+  assert.doesNotMatch((await lastAiRequest()).messages[0].content, /Conversation so far/);
+});
+
 test('multi-store users: 100% to the chosen store, else their first store', async () => {
   const sharesFor = (requestId) => waitFor(async () => {
     const rows = await sql`

@@ -77,7 +77,7 @@ All responses are JSON unless noted. Errors look like `{ "error": "message", "co
 | `POST /api/auth/logout` | signed in | Ends the current session |
 | `POST /api/auth/password` | signed in | `{ currentPassword, newPassword }`; signs out other sessions |
 | `GET /api/me` | signed in | User (with `rooftops`), model, and this month's usage |
-| `POST /api/generate` | signed in | `{ mode: 'enhance' \| 'response', text, additionalContext?, rooftopId?, variant? }` → server-sent events: `delta`, `done` or `error` |
+| `POST /api/generate` | signed in | `{ mode: 'enhance' \| 'response', text, additionalContext?, rooftopId?, variant?, conversation? }` (`conversation`: recent texts `[{ from: 'customer' \| 'dealership', name?, time?, text }]`, oldest first) → server-sent events: `delta`, `done` or `error` |
 | `GET /api/admin/usage?from&to` | admin | Totals plus breakdowns by rooftop, user and day |
 | `GET, POST /api/admin/users` | admin | List, or create `{ email, name, role, rooftopIds, model }` (returns a temporary password) |
 | `PATCH /api/admin/users/:id` | admin | `{ name, role, rooftopIds, model, active, unlock }`; leaving out `rooftopIds` keeps the current rooftops |

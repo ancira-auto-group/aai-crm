@@ -19,7 +19,9 @@ scripts/     Repository tooling (version check)
 4. On a VinSolutions page, select at least 10 characters of text and click **Enhance** (improve your own text) or **Reply** (draft an answer to a customer's message). Shortcuts: **Alt+Shift+E** and **Alt+Shift+R**.
 5. Tweak the result with **Mix It Up**, the quick tone buttons, or **Add Some Flair**, then **Copy & Close** (Ctrl/⌘+Enter) to put it back in the CRM.
 
-Phone numbers, email addresses and Social Security numbers are replaced with placeholders before text leaves the browser.
+In the VinSolutions SMS window, the AI also sees the last few texts in the conversation ("+ last N texts for context" appears in the window), so it knows what was already said. Select one of the texts to reply to it; only that text and the ones before it are used.
+
+Phone numbers, email addresses and Social Security numbers are replaced with placeholders before text leaves the browser. This applies to the conversation texts too.
 
 Forgot your password? Ask your administrator to reset it.
 
